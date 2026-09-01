@@ -1,0 +1,19 @@
+# Python 虚拟环境
+venv/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# 数据库文件
+*.db
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+
+# 临时文件
+*.log
+*.tmp
