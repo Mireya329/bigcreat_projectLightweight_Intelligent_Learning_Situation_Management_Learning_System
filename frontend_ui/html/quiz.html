@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>专项题库 - 轻量化智能学情管理系统</title>
+    <link rel="stylesheet" href="../css/common.css">
+</head>
+<body>
+    <div class="app-layout">
+        <!-- 侧边导航栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-logo">
+                <h1>智能备考系统</h1>
+            </div>
+            <nav class="sidebar-menu">
+                <a href="vocabulary.html" class="sidebar-menu-item">
+                    <span class="icon">📚</span>
+                    <span>词汇记忆</span>
+                </a>
+                <a href="mistakes.html" class="sidebar-menu-item">
+                    <span class="icon">📝</span>
+                    <span>错题归档</span>
+                </a>
+                <a href="quiz.html" class="sidebar-menu-item active">
+                    <span class="icon">✏️</span>
+                    <span>专项题库</span>
+                </a>
+                <a href="review.html" class="sidebar-menu-item">
+                    <span class="icon">🔄</span>
+                    <span>记忆复习</span>
+                </a>
+                <a href="analytics.html" class="sidebar-menu-item">
+                    <span class="icon">📊</span>
+                    <span>学情分析</span>
+                </a>
+                <a href="ai.html" class="sidebar-menu-item">
+                    <span class="icon">🤖</span>
+                    <span>AI备考</span>
+                </a>
+                <a href="plan.html" class="sidebar-menu-item">
+                    <span class="icon">📅</span>
+                    <span>备考计划</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                v1.0.0 · 3号前端
+            </div>
+        </aside>
+
+        <!-- 主内容区 -->
+        <div class="main-content">
+            <!-- 顶部状态栏 -->
+            <header class="header">
+                <div class="header-left">
+                    <h2 class="header-title">专项题库</h2>
+                </div>
+                <div class="header-right">
+                    <div class="header-status">
+                        <span class="status-dot"></span>
+                        <span>离线模式</span>
+                    </div>
+                    <div class="header-user">
+                        <div class="user-avatar">学</div>
+                        <span class="user-name">学习者</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- 页面内容区 -->
+            <main class="page-content">
+                <!-- 页面标题 -->
+                <div class="page-header">
+                    <h1 class="page-title">专项题库刷题</h1>
+                    <p class="page-subtitle">选择科目和题型，开始针对性刷题练习</p>
+                </div>
+
+                <!-- 筛选栏 -->
+                <div class="filter-bar">
+                    <div class="filter-item">
+                        <label class="filter-label">科目：</label>
+                        <select class="filter-select">
+                            <option>考研政治</option>
+                            <option>考研数学</option>
+                            <option>考研英语</option>
+                            <option>英语四级</option>
+                            <option>英语六级</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">题型：</label>
+                        <select class="filter-select">
+                            <option>选择题</option>
+                            <option>填空题</option>
+                            <option>解答题</option>
+                            <option>作文</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">难度：</label>
+                        <select class="filter-select">
+                            <option>全部难度</option>
+                            <option>简单</option>
+                            <option>中等</option>
+                            <option>困难</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">年份：</label>
+                        <select class="filter-select">
+                            <option>全部年份</option>
+                            <option>2025年</option>
+                            <option>2024年</option>
+                            <option>2023年</option>
+                            <option>2022年</option>
+                        </select>
+                    </div>
+                    <div style="flex: 1;"></div>
+                    <button class="btn btn-primary btn-sm">开始刷题</button>
+                </div>
+
+                <!-- 答题进度和计时器 -->
+                <div class="card" style="margin-bottom: 20px; padding: 16px 24px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <div style="display: flex; align-items: center; gap: 16px;">
+                            <span style="font-size: 14px; font-weight: 500; color: var(--color-text-title);">第 5 / 20 题</span>
+                            <span class="tag tag-primary">单选题</span>
+                            <span class="tag tag-warning">中等难度</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 13px; color: var(--color-text-caption);">剩余时间：</span>
+                            <span style="font-size: 20px; font-weight: 700; color: var(--color-primary-light); font-family: Consolas, monospace;">25:36</span>
+                        </div>
+                    </div>
+                    <div style="width: 100%; height: 8px; background-color: var(--color-bg-card); border-radius: 4px; overflow: hidden;">
+                        <div style="width: 25%; height: 100%; background: linear-gradient(90deg, var(--color-primary-light), var(--color-primary)); border-radius: 4px;"></div>
+                    </div>
+                </div>
+
+                <!-- 主答题区域 -->
+                <div style="display: grid; grid-template-columns: 1fr 280px; gap: 20px;">
+                    <!-- 题目卡片 -->
+                    <div class="card">
+                        <!-- 题目内容 -->
+                        <div style="margin-bottom: 24px;">
+                            <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                                <span class="tag tag-primary">考研政治</span>
+                                <span class="tag tag-default">2024年真题</span>
+                                <span class="tag tag-warning">中等</span>
+                            </div>
+                            <div style="font-size: 16px; font-weight: 500; color: var(--color-text-title); line-height: 1.8; margin-bottom: 8px;">
+                                5. 马克思主义哲学认为，世界的统一性在于它的物质性。这一原理的哲学依据是？
+                            </div>
+                        </div>
+
+                        <!-- 选项 -->
+                        <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px;">
+                            <label style="display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border: 1px solid var(--color-border); border-radius: var(--radius-btn); cursor: pointer; transition: all var(--transition-fast); background-color: var(--color-primary-bg); border-color: var(--color-primary-light);">
+                                <input type="radio" name="answer" checked style="margin-top: 3px; accent-color: var(--color-primary-light);">
+                                <span style="font-size: 14px; color: var(--color-text-body); line-height: 1.6;">
+                                    <strong style="color: var(--color-primary-light);">A.</strong> 物质是世界的本原，意识是物质的产物
+                                </span>
+                            </label>
+                            <label style="display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border: 1px solid var(--color-border); border-radius: var(--radius-btn); cursor: pointer; transition: all var(--transition-fast);">
+                                <input type="radio" name="answer" style="margin-top: 3px; accent-color: var(--color-primary-light);">
+                                <span style="font-size: 14px; color: var(--color-text-body); line-height: 1.6;">
+                                    <strong>B.</strong> 世界是普遍联系和永恒发展的
+                                </span>
+                            </label>
+                            <label style="display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border: 1px solid var(--color-border); border-radius: var(--radius-btn); cursor: pointer; transition: all var(--transition-fast);">
+                                <input type="radio" name="answer" style="margin-top: 3px; accent-color: var(--color-primary-light);">
+                                <span style="font-size: 14px; color: var(--color-text-body); line-height: 1.6;">
+                                    <strong>C.</strong> 矛盾是事物发展的根本动力
+                                </span>
+                            </label>
+                            <label style="display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border: 1px solid var(--color-border); border-radius: var(--radius-btn); cursor: pointer; transition: all var(--transition-fast);">
+                                <input type="radio" name="answer" style="margin-top: 3px; accent-color: var(--color-primary-light);">
+                                <span style="font-size: 14px; color: var(--color-text-body); line-height: 1.6;">
+                                    <strong>D.</strong> 实践是认识的基础和来源
+                                </span>
+                            </label>
+                        </div>
+
+                        <!-- 操作按钮 -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 20px; border-top: 1px solid var(--color-border);">
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn btn-default btn-sm">上一题</button>
+                                <button class="btn btn-default btn-sm">标记此题</button>
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn btn-ghost btn-sm">查看解析</button>
+                                <button class="btn btn-primary btn-sm">下一题</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 答题卡 -->
+                    <div class="card" style="padding: 20px;">
+                        <div style="font-size: 15px; font-weight: 600; color: var(--color-text-title); margin-bottom: 16px;">答题卡</div>
+                        
+                        <!-- 图例 -->
+                        <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; font-size: 12px; color: var(--color-text-caption);">
+                            <div style="display: flex; align-items: center; gap: 4px;">
+                                <div style="width: 14px; height: 14px; border-radius: 3px; background-color: var(--color-primary-light);"></div>
+                                <span>已答</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 4px;">
+                                <div style="width: 14px; height: 14px; border-radius: 3px; background-color: var(--color-bg-card); border: 1px solid var(--color-border);"></div>
+                                <span>未答</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 4px;">
+                                <div style="width: 14px; height: 14px; border-radius: 3px; background-color: var(--color-warning);"></div>
+                                <span>标记</span>
+                            </div>
+                        </div>
+
+                        <!-- 题号网格 -->
+                        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 20px;">
+                            <div style="width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background-color: var(--color-primary-light); color: white; border-radius: 4px; font-size: 13px; font-weight: 500; cursor: pointer;">1</div>
+                            <div style="width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background-color: var(--color-primary-light); color: white; border-radius: 4px; font-size: 13px; font-weight: 500; cursor: pointer;">2</div>
+                            <div style="width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background-color: var(--color-warning); color: white; border-radius: 4px; font-size: 13px; font-weight: 500; cursor: pointer;">3</div>
+                            <div style="width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background-color: var(--color-primary-light); color: white; border-radius: 4px; font-size: 13px; font-weight: 500; cursor: pointer;">4</div>
+                            <div style="width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background-color: var(--color-primary); color: white; border-radius: 4px; font-size: 13px; font-weight: 700; cursor: pointer; border: 2px solid var(--color-primary-dark);">5</div>
+                            <div style="width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background-color: var(--color-bg-card); border: 1px solid var(--color-border); color: var(--color-text-secondary); border-radius: 4px; font-size: 13px; cursor: pointer;">6</div>
+                            <div style="width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background-color: var(--color-bg-card); border: 1px solid var(--color-border); color: var(--color-text-secondary); border-radius: 4px; font-size: 13px; cursor: pointer;">7</div>
+                            <div style="width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background-color: var(--color-bg-card); border: 1px solid var(--color-border); color: var(--color-text-secondary); border-radius: 4px; font-size: 13px; cursor: pointer;">8</div>
+                            <div style="width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background-color: var(--color-bg-card); border: 1px solid var(--color-border); color: var(--color-text-secondary); border-radius: 4px; font-size: 13px; cursor: pointer;">9</div>
+                            <div style="width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background-color: var(--color-bg-card); border: 1px solid var(--color-border); color: var(--color-text-secondary); border-radius: 4px; font-size: 13px; cursor: pointer;">10</div>
+                            <div style="width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background-color: var(--color-bg-card); border: 1px solid var(--color-border); color: var(--color-text-secondary); border-radius: 4px; font-size: 13px; cursor: pointer;">11</div>
+                            <div style="width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background-color: var(--color-bg-card); border: 1px solid var(--color-border); color: var(--color-text-secondary); border-radius: 4px; font-size: 13px; cursor: pointer;">12</div>
+                            <div style="width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background-color: var(--color-bg-card); border: 1px solid var(--color-border); color: var(--color-text-secondary); border-radius: 4px; font-size: 13px; cursor: pointer;">13</div>
+                            <div style="width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background-color: var(--color-bg-card); border: 1px solid var(--color-border); color: var(--color-text-secondary); border-radius: 4px; font-size: 13px; cursor: pointer;">14</div>
+                            <div style="width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background-color: var(--color-bg-card); border: 1px solid var(--color-border); color: var(--color-text-secondary); border-radius: 4px; font-size: 13px; cursor: pointer;">15</div>
+                            <div style="width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background-color: var(--color-bg-card); border: 1px solid var(--color-border); color: var(--color-text-secondary); border-radius: 4px; font-size: 13px; cursor: pointer;">16</div>
+                            <div style="width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background-color: var(--color-bg-card); border: 1px solid var(--color-border); color: var(--color-text-secondary); border-radius: 4px; font-size: 13px; cursor: pointer;">17</div>
+                            <div style="width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background-color: var(--color-bg-card); border: 1px solid var(--color-border); color: var(--color-text-secondary); border-radius: 4px; font-size: 13px; cursor: pointer;">18</div>
+                            <div style="width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background-color: var(--color-bg-card); border: 1px solid var(--color-border); color: var(--color-text-secondary); border-radius: 4px; font-size: 13px; cursor: pointer;">19</div>
+                            <div style="width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background-color: var(--color-bg-card); border: 1px solid var(--color-border); color: var(--color-text-secondary); border-radius: 4px; font-size: 13px; cursor: pointer;">20</div>
+                        </div>
+
+                        <!-- 统计 -->
+                        <div style="padding: 12px; background-color: var(--color-bg-card); border-radius: var(--radius-btn); margin-bottom: 16px;">
+                            <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
+                                <span style="color: var(--color-text-secondary);">已答</span>
+                                <span style="color: var(--color-primary-light); font-weight: 600;">4题</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
+                                <span style="color: var(--color-text-secondary);">未答</span>
+                                <span style="color: var(--color-text-caption); font-weight: 600;">15题</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                                <span style="color: var(--color-text-secondary);">标记</span>
+                                <span style="color: var(--color-warning); font-weight: 600;">1题</span>
+                            </div>
+                        </div>
+
+                        <!-- 提交按钮 -->
+                        <button class="btn btn-primary btn-block">提交试卷</button>
+                    </div>
+                </div>
+            </main>
+
+            <!-- 底部状态栏 -->
+            <footer class="footer">
+                <div class="footer-left">
+                    <span>© 2026 轻量化智能学情管理系统</span>
+                </div>
+                <div class="footer-right">
+                    <span>离线模式</span>
+                    <span>v1.0.0</span>
+                </div>
+            </footer>
+        </div>
+    </div>
+</body>
+</html>

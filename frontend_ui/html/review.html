@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>记忆复习 - 轻量化智能学情管理系统</title>
+    <link rel="stylesheet" href="../css/common.css">
+    <style>
+        /* 复习卡片翻转效果 */
+        .flip-card {
+            perspective: 1000px;
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            height: 360px;
+        }
+        .flip-card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+        .flip-card.flipped .flip-card-inner {
+            transform: rotateY(180deg);
+        }
+        .flip-card-front, .flip-card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: var(--radius-card);
+            background-color: var(--color-white);
+            box-shadow: var(--shadow-md);
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+        }
+        .flip-card-back {
+            transform: rotateY(180deg);
+        }
+        .rating-btn {
+            flex: 1;
+            padding: 14px 8px;
+            border-radius: var(--radius-btn);
+            font-size: 14px;
+            font-weight: 500;
+            border: none;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            color: white;
+        }
+        .rating-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        .rating-forget { background-color: var(--color-danger); }
+        .rating-hard { background-color: var(--color-warning); }
+        .rating-good { background-color: var(--color-primary-light); }
+        .rating-easy { background-color: var(--color-success); }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- 侧边导航栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-logo">
+                <h1>智能备考系统</h1>
+            </div>
+            <nav class="sidebar-menu">
+                <a href="vocabulary.html" class="sidebar-menu-item">
+                    <span class="icon">📚</span>
+                    <span>词汇记忆</span>
+                </a>
+                <a href="mistakes.html" class="sidebar-menu-item">
+                    <span class="icon">📝</span>
+                    <span>错题归档</span>
+                </a>
+                <a href="quiz.html" class="sidebar-menu-item">
+                    <span class="icon">✏️</span>
+                    <span>专项题库</span>
+                </a>
+                <a href="review.html" class="sidebar-menu-item active">
+                    <span class="icon">🔄</span>
+                    <span>记忆复习</span>
+                </a>
+                <a href="analytics.html" class="sidebar-menu-item">
+                    <span class="icon">📊</span>
+                    <span>学情分析</span>
+                </a>
+                <a href="ai.html" class="sidebar-menu-item">
+                    <span class="icon">🤖</span>
+                    <span>AI备考</span>
+                </a>
+                <a href="plan.html" class="sidebar-menu-item">
+                    <span class="icon">📅</span>
+                    <span>备考计划</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                v1.0.0 · 3号前端
+            </div>
+        </aside>
+
+        <!-- 主内容区 -->
+        <div class="main-content">
+            <!-- 顶部状态栏 -->
+            <header class="header">
+                <div class="header-left">
+                    <h2 class="header-title">记忆复习</h2>
+                </div>
+                <div class="header-right">
+                    <div class="header-status">
+                        <span class="status-dot"></span>
+                        <span>离线模式</span>
+                    </div>
+                    <div class="header-user">
+                        <div class="user-avatar">学</div>
+                        <span class="user-name">学习者</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- 页面内容区 -->
+            <main class="page-content">
+                <!-- 页面标题 -->
+                <div class="page-header">
+                    <h1 class="page-title">Anki 间隔重复复习</h1>
+                    <p class="page-subtitle">基于艾宾浩斯遗忘曲线，智能安排复习时间，记忆更高效</p>
+                </div>
+
+                <!-- 今日复习进度 -->
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px;">
+                    <div class="card">
+                        <div style="font-size: 13px; color: var(--color-text-caption); margin-bottom: 8px;">今日待复习</div>
+                        <div style="font-size: 28px; font-weight: 700; color: var(--color-primary-light);">28</div>
+                        <div style="font-size: 12px; color: var(--color-text-caption); margin-top: 4px;">张卡片</div>
+                    </div>
+                    <div class="card">
+                        <div style="font-size: 13px; color: var(--color-text-caption); margin-bottom: 8px;">已复习</div>
+                        <div style="font-size: 28px; font-weight: 700; color: var(--color-success);">12</div>
+                        <div style="font-size: 12px; color: var(--color-text-caption); margin-top: 4px;">完成率 43%</div>
+                    </div>
+                    <div class="card">
+                        <div style="font-size: 13px; color: var(--color-text-caption); margin-bottom: 8px;">正确率</div>
+                        <div style="font-size: 28px; font-weight: 700; color: var(--color-warning);">75%</div>
+                        <div style="font-size: 12px; color: var(--color-text-caption); margin-top: 4px;">9/12 正确</div>
+                    </div>
+                    <div class="card">
+                        <div style="font-size: 13px; color: var(--color-text-caption); margin-bottom: 8px;">复习时长</div>
+                        <div style="font-size: 28px; font-weight: 700; color: var(--color-info);">18</div>
+                        <div style="font-size: 12px; color: var(--color-text-caption); margin-top: 4px;">分钟</div>
+                    </div>
+                </div>
+
+                <!-- 复习设置栏 -->
+                <div class="filter-bar">
+                    <div class="filter-item">
+                        <label class="filter-label">复习科目：</label>
+                        <select class="filter-select">
+                            <option>全部科目</option>
+                            <option>考研政治</option>
+                            <option>考研数学</option>
+                            <option>考研英语</option>
+                            <option>英语四级</option>
+                            <option>英语六级</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">卡片类型：</label>
+                        <select class="filter-select">
+                            <option>全部类型</option>
+                            <option>知识点卡片</option>
+                            <option>错题卡片</option>
+                            <option>单词卡片</option>
+                            <option>公式卡片</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">复习模式：</label>
+                        <select class="filter-select">
+                            <option>间隔重复</option>
+                            <option>顺序复习</option>
+                            <option>随机复习</option>
+                            <option>错题优先</option>
+                        </select>
+                    </div>
+                    <div style="flex: 1;"></div>
+                    <button class="btn btn-default btn-sm">复习设置</button>
+                    <button class="btn btn-primary btn-sm">开始复习</button>
+                </div>
+
+                <!-- 复习卡片区域 -->
+                <div style="margin-bottom: 24px;">
+                    <div style="text-align: center; margin-bottom: 16px;">
+                        <span class="tag tag-primary">第 13 / 28 张</span>
+                        <span class="tag tag-default" style="margin-left: 8px;">知识点卡片</span>
+                        <span class="tag tag-warning" style="margin-left: 8px;">考研政治</span>
+                    </div>
+
+                    <!-- 翻转卡片 -->
+                    <div class="flip-card flipped" id="flipCard">
+                        <div class="flip-card-inner">
+                            <!-- 卡片正面 -->
+                            <div class="flip-card-front">
+                                <div style="text-align: center; flex: 1; display: flex; flex-direction: column; justify-content: center;">
+                                    <div style="font-size: 13px; color: var(--color-text-caption); margin-bottom: 16px;">问题</div>
+                                    <div style="font-size: 22px; font-weight: 600; color: var(--color-text-title); line-height: 1.6; margin-bottom: 24px;">
+                                        马克思主义哲学的直接理论来源是什么？
+                                    </div>
+                                    <div style="font-size: 14px; color: var(--color-text-caption);">
+                                        点击卡片或下方按钮查看答案
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- 卡片背面 -->
+                            <div class="flip-card-back">
+                                <div style="flex: 1; overflow-y: auto;">
+                                    <div style="font-size: 13px; color: var(--color-text-caption); margin-bottom: 12px;">答案</div>
+                                    <div style="font-size: 18px; font-weight: 600; color: var(--color-success); margin-bottom: 16px;">
+                                        德国古典哲学
+                                    </div>
+                                    <div style="background-color: var(--color-bg-card); border-radius: var(--radius-card); padding: 16px; margin-bottom: 16px;">
+                                        <div style="font-size: 13px; font-weight: 600; color: var(--color-text-title); margin-bottom: 8px;">详细解析：</div>
+                                        <div style="font-size: 14px; color: var(--color-text-body); line-height: 1.8;">
+                                            马克思主义哲学的直接理论来源是德国古典哲学，特别是：<br>
+                                            1. <strong>黑格尔的辩证法</strong>（唯心主义辩证法）<br>
+                                            2. <strong>费尔巴哈的唯物主义</strong>（形而上学唯物主义）<br><br>
+                                            马克思和恩格斯批判地继承了德国古典哲学的优秀成果，创立了辩证唯物主义和历史唯物主义。
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; gap: 12px; font-size: 12px; color: var(--color-text-caption);">
+                                        <span>📚 来源：考研政治核心考点</span>
+                                        <span>⏰ 上次复习：3天前</span>
+                                        <span>📈 复习次数：4次</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 翻转提示 -->
+                    <div style="text-align: center; margin-top: 16px;">
+                        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('flipCard').classList.toggle('flipped')">
+                            🔄 翻转卡片
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 记忆程度评分 -->
+                <div class="card" style="padding: 20px 24px;">
+                    <div style="text-align: center; margin-bottom: 16px;">
+                        <div style="font-size: 15px; font-weight: 600; color: var(--color-text-title); margin-bottom: 4px;">这张卡片你记得怎么样？</div>
+                        <div style="font-size: 13px; color: var(--color-text-caption);">根据你的记忆程度选择，系统会智能安排下次复习时间</div>
+                    </div>
+                    <div style="display: flex; gap: 12px;">
+                        <button class="rating-btn rating-forget">
+                            <div style="font-size: 16px; font-weight: 600; margin-bottom: 4px;">忘记</div>
+                            <div style="font-size: 11px; opacity: 0.9;">10分钟后复习</div>
+                        </button>
+                        <button class="rating-btn rating-hard">
+                            <div style="font-size: 16px; font-weight: 600; margin-bottom: 4px;">模糊</div>
+                            <div style="font-size: 11px; opacity: 0.9;">1天后复习</div>
+                        </button>
+                        <button class="rating-btn rating-good">
+                            <div style="font-size: 16px; font-weight: 600; margin-bottom: 4px;">记住</div>
+                            <div style="font-size: 11px; opacity: 0.9;">3天后复习</div>
+                        </button>
+                        <button class="rating-btn rating-easy">
+                            <div style="font-size: 16px; font-weight: 600; margin-bottom: 4px;">熟练</div>
+                            <div style="font-size: 11px; opacity: 0.9;">7天后复习</div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 底部操作 -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-default btn-sm">上一张</button>
+                        <button class="btn btn-default btn-sm">暂停复习</button>
+                    </div>
+                    <div style="font-size: 13px; color: var(--color-text-caption);">
+                        预计还需 <strong style="color: var(--color-primary-light);">25分钟</strong> 完成今日复习
+                    </div>
+                </div>
+            </main>
+
+            <!-- 底部状态栏 -->
+            <footer class="footer">
+                <div class="footer-left">
+                    <span>© 2026 轻量化智能学情管理系统</span>
+                </div>
+                <div class="footer-right">
+                    <span>离线模式</span>
+                    <span>v1.0.0</span>
+                </div>
+            </footer>
+        </div>
+    </div>
+</body>
+</html>
