@@ -88,9 +88,14 @@ PROMPT_TEMPLATES: dict[str, str] = {
     # 模块四：考研择校冲稳保推荐
     "school_advice": "根据学生情况（本科院校/专业/目标分数/意向地区），"
                      "按冲、稳、保三档各推荐院校并说明理由：{profile}",
-    # 模块五：英语作文批改润色
-    "essay_polish": "请批改以下英语作文：先指出语法错误（逐条）,"
-                    "再给出润色版本，最后按四六级/考研标准打分。\n作文：{essay}",
+    # 模块六（2026-09-15 新增）：碎片归属判断，用于把切分漏掉的题找回来
+    "judge_fragment": "以下是试卷 OCR 文本的一个片段，它位于两道已识别的题目之间，"
+                      "它自己的题号可能已经丢失。\n"
+                      "请判断：\nA. 它是上一题的延续（作答过程、笔记、公式推导）\n"
+                      "B. 它是一道独立的题目\n\n"
+                      "规矩：文本若残缺到看不清，直接回答 C（无法判断），不要猜测。\n"
+                      "若判断为 B，请接着给出：题号猜测、题干（摘录原文）、题型。\n\n"
+                      "上一题末尾：{prev}\n下一题开头：{next}\n待判断片段：{fragment}",
 }
 
 # mock 占位输出（第 1 阶段联调用）
@@ -101,6 +106,7 @@ MOCK_OUTPUTS: dict[str, str] = {
     "diagnose": "[占位] 薄弱点诊断结果。",
     "school_advice": "[占位] 择校推荐结果。",
     "essay_polish": "[占位] 作文批改结果。",
+    "judge_fragment": "[占位] 碎片归属判断结果。",
 }
 
 
@@ -189,6 +195,15 @@ def diagnose_weakness(stats: dict) -> AIResponse:
 def school_advice(profile: dict) -> AIResponse:
     """考研择校冲稳保推荐：第 3 阶段接考研数据库模块。"""
     return call_ai(AIRequest("school_advice", {"profile": json.dumps(profile, ensure_ascii=False)}))
+
+
+def judge_fragment(fragment: str, prev: str, next_: str) -> AIResponse:
+    """碎片归属判断：这段 OCR 文本是上一题的延续，还是一道被漏掉的独立题？
+
+    用于把切分算法漏掉的题目找回来（题号被 OCR 丢失时）。
+    """
+    return call_ai(AIRequest("judge_fragment",
+                             {"fragment": fragment, "prev": prev, "next": next_}))
 
 
 def polish_essay(essay: str) -> AIResponse:

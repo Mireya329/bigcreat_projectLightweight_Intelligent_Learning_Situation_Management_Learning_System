@@ -1,0 +1,38 @@
+{
+ "_说明": "以下题目 OCR 文本丢失严重，AI 无法恢复，需对照原图人工补录。填好 stem 后再运行 ocr_manual_import.py 入库（尚未实现）。",
+ "_原图": "data/test_real_exam.png",
+ "items": [
+  {
+   "section": "一、选择题",
+   "no": "1",
+   "lines": "8-27",
+   "ocr_remain": "Ox100001\nf(x0+∆x,y0+∆y)−f(xbsy6)\nf(x_g}+ ∆x, y6)− f(xg, ya)\n(A)\nlim\n(B)\nlim\nAx→0\n∆x\néró\n∆x\nf(x0+∆x,y)−f(x0,y0)\nf (x6, y6 +∆y)− f (xg, ys)\nlim  \n(9)\n(D)\nlim\n∆x\nÁx0\n∆x",
+   "stem": "",
+   "_待填": "对照原图填写完整题干"
+  },
+  {
+   "section": "一、选择题",
+   "no": "2",
+   "lines": "28-29",
+   "ocr_remain": "B.C\n8ふ",
+   "stem": "",
+   "_待填": "对照原图填写完整题干"
+  },
+  {
+   "section": "二、填空题",
+   "no": "3",
+   "lines": "60-60",
+   "ocr_remain": "2×y334",
+   "stem": "",
+   "_待填": "对照原图填写完整题干"
+  },
+  {
+   "section": "三、计算题",
+   "no": "2",
+   "lines": "69-84",
+   "ocr_remain": "b\n门理工学院\n(a):a\nIna\n=Iaa\naby\n2\n永儒导数u。\n4っ\n#\nMz=\n=1nx\n十\n1\nMy=\n∂'s",
+   "stem": "",
+   "_待填": "对照原图填写完整题干"
+  }
+ ]
+}
