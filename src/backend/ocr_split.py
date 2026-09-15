@@ -11,14 +11,15 @@ Q_RE   = re.compile(r'^(\d+)\s*[.．、](.+)$')               # 1. / 2. / 3、 /
 
 
 def split_questions(text):
-    lines = [l.strip() for l in text.splitlines()]
-    lines = [l for l in lines if l]      # 去掉空行
-
     result = []
     cur = None          # 当前正在攒的题
     section = ""        # 当前章节名
 
-    for l in lines:
+    # 保留原始行号：enumerate 从 1 开始，和 all_text.txt 的行号一致
+    items = [(i, l.strip()) for i, l in enumerate(text.splitlines(), 1)]
+    items = [(i, s) for i, s in items if s]      # 去空行，但行号跟着走
+
+    for i, l in items:
         ms = SEC_RE.match(l)
         mq = Q_RE.match(l)
 
@@ -28,12 +29,19 @@ def split_questions(text):
         if mq:                            # 题号行：上一题收工，开新题
             if cur:
                 result.append(cur)
-            cur = {"section": section, "no": mq.group(1), "lines": [l]}
+            cur = {"section": section, "no": mq.group(1),
+                   "lines": [l], "line_nos": [i]}
         elif cur:                         # 普通行：归入当前题
             cur["lines"].append(l)
+            cur["line_nos"].append(i)
 
     if cur:                               # 最后一题别漏掉
         result.append(cur)
+
+    # 补上每道题的起止行号，供评估脚本比对
+    for q in result:
+        q["start_line"] = q["line_nos"][0]
+        q["end_line"] = q["line_nos"][-1]
     return result
 
 

@@ -1,0 +1,118 @@
+{
+  "_说明": "切分基准（标准答案）。行号对应 all_text.txt 的 1-based 行号，闭区间。",
+  "_来源文件": "data/ocr_fast_test/all_text.txt",
+  "_原图": "data/test_real_exam.png",
+  "_confidence含义": {
+    "confirmed": "题号行被 OCR 正确识别，或已由人工对照原图确认边界",
+    "guessed": "题号行丢失或被误识别，边界由上下文推断，必须对照原图人工核对"
+  },
+  "_标注规范": "对照原图逐题核对，把 guessed 的改成正确的 start_line/end_line，并把 confidence 改为 confirmed",
+  "_标注进度_2026-09-15": "已对照原图确认：选择题 4 道、填空题 3 道、计算题 5 道，共 12 道。OCR 实测切出 7 道，召回率 7/12 = 58%",
+
+  "noise_lines": [1, 2, 3, 4, 5, 6, 67, 68],
+  "_noise说明": "1-6 是第1页页眉；67 是第1页页码'11'；68 是第2页页眉'第9章多元函数微分学'。已对照原图确认",
+
+  "questions": [
+    {
+      "no": "1",
+      "section": "一、选择题",
+      "start_line": 8,
+      "end_line": 27,
+      "stem": "（题号被 OCR 识别成 Ox100001，原卷为 1. 偏导数定义题）",
+      "confidence": "guessed"
+    },
+    {
+      "no": "2",
+      "section": "一、选择题",
+      "start_line": 28,
+      "end_line": 29,
+      "stem": "（整题几乎全损，OCR 仅剩碎片 'B.C' / '8ふ'，原卷选项疑似 (A)0 (B)1 (C)2 (D)∞）",
+      "confidence": "guessed",
+      "_待确认": "请对照原图补全题干，并确认行范围是否只有 28-29"
+    },
+    {
+      "no": "3",
+      "section": "一、选择题",
+      "start_line": 30,
+      "end_line": 42,
+      "stem": "二元函数 f(x,y) = { xy/(x²+y²), (x,y)≠(0,0); 0, (x,y)=(0,0) } 在(0,0)处",
+      "confidence": "confirmed",
+      "_重要": "原卷题号是 3.，但 OCR 误识别成 '2.'——题号本身也会被 OCR 认错，这是典型缺陷样本"
+    },
+    {
+      "no": "4",
+      "section": "一、选择题",
+      "start_line": 43,
+      "end_line": 47,
+      "stem": "设 w = f(x,y)g(x)+h(x)，其中 f、g 都是可导函数，则 ∂w/∂x =",
+      "confidence": "confirmed",
+      "_说明": "由人工确认，选项 (O) 被 OCR 认成数字 (0)"
+    },
+    {
+      "no": "1",
+      "section": "二、填空题",
+      "start_line": 49,
+      "end_line": 56,
+      "stem": "1. 设f(x,y)=x3y+e−sin(x²−y2),则fx(1,1)=l+e",
+      "confidence": "confirmed"
+    },
+    {
+      "no": "2",
+      "section": "二、填空题",
+      "start_line": 57,
+      "end_line": 59,
+      "stem": "2. 设z = arctan",
+      "confidence": "confirmed"
+    },
+    {
+      "no": "3",
+      "section": "二、填空题",
+      "start_line": 60,
+      "end_line": 60,
+      "stem": "（题号行丢失，OCR 仅剩碎片 '2×y334'，原卷疑似 3. 设f(x,y)=x²y⁵，求∂z/∂x）",
+      "confidence": "guessed",
+      "_待确认": "请对照原图补全题干与行范围"
+    },
+    {
+      "no": "1",
+      "section": "三、计算题",
+      "start_line": 62,
+      "end_line": 66,
+      "stem": "1. 已知z=x4+y4−4x2y2，求zx(1,2)和zy(1,2).",
+      "confidence": "confirmed"
+    },
+    {
+      "no": "2",
+      "section": "三、计算题",
+      "start_line": 69,
+      "end_line": 84,
+      "stem": "（题号行丢失，OCR 区域混有手写笔记）",
+      "confidence": "guessed",
+      "_待确认": "请对照原图确认计算题 2 的起止行"
+    },
+    {
+      "no": "3",
+      "section": "三、计算题",
+      "start_line": 85,
+      "end_line": 92,
+      "stem": "3. 设f(x,y)=ln|x+y|-e，求",
+      "confidence": "confirmed"
+    },
+    {
+      "no": "4",
+      "section": "三、计算题",
+      "start_line": 93,
+      "end_line": 100,
+      "stem": "4.设z=f(x,y),f(x,y)=2,f (x,0)=x，且f(x,0)=3，求函数z=f(x,y)的表达式.",
+      "confidence": "confirmed"
+    },
+    {
+      "no": "5",
+      "section": "三、计算题",
+      "start_line": 101,
+      "end_line": 116,
+      "stem": "5. (2020) 设函数 f(x,y)= 1 edt，求",
+      "confidence": "confirmed"
+    }
+  ]
+}
