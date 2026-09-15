@@ -69,6 +69,17 @@ PROMPT_TEMPLATES: dict[str, str] = {
     "explain_wrong": "你是一名大学辅导老师。以下是学生做错的一道题，"
                      "请输出：1.正确解题思路 2.错误原因归类（概念不清/计算失误/审题偏差/方法缺失）"
                      "3.关联知识点 4.一道同类变式题。\n题目：{question}\n学生答案：{student_answer}",
+    # 模块一 v2（2026-09-15 A/B 实验）：增加"OCR 残缺识别"约束
+    # 背景：题目文本来自 OCR，实测发现题干残缺时模型会一本正经地编造解析（垃圾进、幻觉出）。
+    # v2 在完全保留 v1 四段结构的前提下，额外要求模型"看不清就说看不清"。
+    "explain_wrong_v2": "你是一名大学辅导老师。以下是学生做错的一道题，"
+                     "请输出：1.正确解题思路 2.错误原因归类（概念不清/计算失误/审题偏差/方法缺失）"
+                     "3.关联知识点 4.一道同类变式题。\n"
+                     "【重要前提】题目文本来自 OCR 扫描识别，可能残缺、含乱码或顺序错乱。"
+                     "如果你发现题目不完整、含明显乱码（如 Ox100001、f(xbsy6 之类）或无法理解题意，"
+                     "你必须直接回答：\"题目文本残缺，无法解析\"，并原样列出你看到的文本；"
+                     "**严禁猜测题意、严禁编造解答和变式题**。\n"
+                     "题目：{question}\n学生答案：{student_answer}",
     # 模块二：知识点问答与背诵抽查
     "qa": "你是知识点答疑助手。用中文简洁准确地回答：{question}",
     # 模块三：薄弱点诊断（第3阶段接学情数据）
@@ -85,6 +96,7 @@ PROMPT_TEMPLATES: dict[str, str] = {
 # mock 占位输出（第 1 阶段联调用）
 MOCK_OUTPUTS: dict[str, str] = {
     "explain_wrong": "[占位] 错题解析结果：第 2 阶段接入 Ollama 后返回真实解析。",
+    "explain_wrong_v2": "[占位] 错题解析结果（v2 带残缺识别）。",
     "qa": "[占位] 知识点问答结果。",
     "diagnose": "[占位] 薄弱点诊断结果。",
     "school_advice": "[占位] 择校推荐结果。",
@@ -151,6 +163,16 @@ def call_ai(req: AIRequest) -> AIResponse:
 def explain_wrong_question(question: str, student_answer: str) -> AIResponse:
     """AI 错题智能解析：OCR 模块识别出题目文本后调用。"""
     return call_ai(AIRequest("explain_wrong",
+                            {"question": question, "student_answer": student_answer}))
+
+
+def explain_wrong_question_v2(question: str, student_answer: str) -> AIResponse:
+    """错题解析 v2：带 OCR 残缺识别约束。
+
+    与 v1 的区别见 PROMPT_TEMPLATES["explain_wrong_v2"] 的注释。
+    两者并存是为了做 A/B 对比，验证"约束"是否真的改变了模型行为。
+    """
+    return call_ai(AIRequest("explain_wrong_v2",
                             {"question": question, "student_answer": student_answer}))
 
 

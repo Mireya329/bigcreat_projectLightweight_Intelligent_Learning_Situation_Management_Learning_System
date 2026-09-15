@@ -7,6 +7,12 @@
     python src/backend/ocr_ai_batch.py --all
     python src/backend/ocr_ai_batch.py --n 3
 
+A/B 对比用：
+    python src/backend/ocr_ai_batch.py --v2 --clear --all
+    --v2     使用带"OCR 残缺识别"约束的 v2 Prompt
+    --clear  先清空 analysis 再跑（重跑同一批题时用）
+    两套 Prompt 并存于 ai_interface.PROMPT_TEMPLATES，方便对比效果。
+
 每跑一题都会往 ai_logs 写一条（场景/模型/耗时/字数），
 这些日志就是结题材料里"AI 效果实测"的数据来源。
 """
@@ -36,13 +42,24 @@ def pick_limit(argv):
 def main():
     limit = pick_limit(sys.argv)
 
+    USE_V2 = "--v2" in sys.argv
+    SCENE = "explain_wrong_v2" if USE_V2 else "explain_wrong"
+    ASK = (ai_interface.explain_wrong_question_v2 if USE_V2
+           else ai_interface.explain_wrong_question)
+
     if not ai_interface.check_ollama_alive():
         print("Ollama 不在线，先启动它（D:\\Ollama\\ollama.exe serve）")
         return
-    print(f"Ollama 在线，模型: {ai_interface.MODEL_NAME}\n")
+    print(f"Ollama 在线，模型: {ai_interface.MODEL_NAME}，Prompt 版本: {SCENE}\n")
 
     conn = get_conn()
     cur = conn.cursor()
+
+    if "--clear" in sys.argv:                      # 重跑前清空上一版结果
+        cur.execute("UPDATE error_items SET analysis=NULL, ai_model=NULL,"
+                    " ai_elapsed_ms=NULL")
+        conn.commit()
+        print("[clear] 已清空全部 analysis，准备重跑\n")
 
     sql = ("SELECT id, user_id, question_text FROM error_items"
            " WHERE analysis IS NULL ORDER BY id")
@@ -63,7 +80,7 @@ def main():
 
         t0 = time.time()
         try:
-            resp = ai_interface.explain_wrong_question(
+            resp = ASK(
                 question=question,
                 student_answer="（OCR 未识别出手写作答）")
             ok, content, err = True, resp.content, None
@@ -90,7 +107,7 @@ def main():
             " (user_id, scene, model, error_item_id, prompt_chars,"
             "  response, elapsed_ms, ok, error_msg)"
             " VALUES (?,?,?,?,?,?,?,?,?)",
-            (user_id, "explain_wrong", ai_interface.MODEL_NAME, eid,
+            (user_id, SCENE, ai_interface.MODEL_NAME, eid,
              len(question), content, elapsed, 1 if ok else 0, err))
         conn.commit()
         print()
