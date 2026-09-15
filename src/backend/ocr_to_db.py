@@ -12,6 +12,7 @@ sys.path.insert(0, str(HERE / "db"))          # 为了 import db
 
 from ocr_split_v2 import split_questions, SRC     # noqa: E402
 from db import get_conn, DB_PATH                  # noqa: E402
+from ocr_quality import score_text                # noqa: E402
 
 USERNAME = "test"
 SUBJECT = "数学"
@@ -44,12 +45,14 @@ def main():
 
     for q in qs:
         body = "\n".join(q["lines"])
+        quality, _ = score_text(body)              # 入库时就算好质量分
         source = f"{SOURCE}｜{q['section']} 第{q['no']}题（行{q['start_line']}-{q['end_line']}）"
         cur.execute(
             "INSERT INTO error_items"
-            " (user_id, subject_id, question_text, ocr_text, source, mastery_level)"
-            " VALUES (?,?,?,?,?,?)",
-            (user_id, subject_id, body, body, source, 0),
+            " (user_id, subject_id, question_text, ocr_text, source,"
+            "  mastery_level, ocr_quality)"
+            " VALUES (?,?,?,?,?,?,?)",
+            (user_id, subject_id, body, body, source, 0, quality),
         )
         eid = cur.lastrowid
 

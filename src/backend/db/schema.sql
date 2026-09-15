@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS error_items (
   paper_level        TEXT,
   ai_model           TEXT,                     -- 生成解析的模型名，便于对比
   ai_elapsed_ms      INTEGER,
+  ocr_quality        INTEGER,                  -- OCR 可信分 0-100，低于阈值不送 AI（质量门禁）
   created_at         TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
   updated_at         TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 );

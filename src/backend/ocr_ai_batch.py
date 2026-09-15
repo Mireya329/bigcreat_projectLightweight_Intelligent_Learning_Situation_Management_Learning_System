@@ -26,6 +26,7 @@ sys.path.insert(0, str(HERE / "db"))          # db
 
 import ai_interface                                # noqa: E402
 from db import get_conn, DB_PATH                   # noqa: E402
+from ocr_quality import score_text                 # noqa: E402
 
 
 def pick_limit(argv):
@@ -46,6 +47,10 @@ def main():
     SCENE = "explain_wrong_v2" if USE_V2 else "explain_wrong"
     ASK = (ai_interface.explain_wrong_question_v2 if USE_V2
            else ai_interface.explain_wrong_question)
+    # 质量门禁：低于该分的题不送 AI（见 ocr_quality.py 的设计说明）
+    MIN_Q = 70
+    if "--min-quality" in sys.argv:
+        MIN_Q = int(sys.argv[sys.argv.index("--min-quality") + 1])
 
     if not ai_interface.check_ollama_alive():
         print("Ollama 不在线，先启动它（D:\\Ollama\\ollama.exe serve）")
@@ -76,6 +81,23 @@ def main():
         eid, user_id, question = r["id"], r["user_id"], r["question_text"]
         print("=" * 58)
         print(f"错题 id={eid}  题干 {len(question)} 字符")
+
+        # ---- 质量门禁：先体检，不合格直接拦下，不送 AI ----
+        q, reasons = score_text(question)
+        print(f"OCR 质量分 {q}（阈值 {MIN_Q}）")
+        for x in reasons:
+            print(f"   - {x}")
+        if q < MIN_Q:
+            cur.execute(
+                "UPDATE error_items SET analysis=?, ai_model=?"
+                " WHERE id=?",
+                (f"[需人工确认] OCR 可信分 {q} 低于阈值 {MIN_Q}，未送 AI。"
+                 f"扣分原因：{'; '.join(reasons)}", "quality_gate", eid))
+            conn.commit()
+            print("  🚫 被质量门禁拦下，已标记为需人工确认")
+            print()
+            continue
+        print("  ✅ 通过门禁，送 AI 解析")
         print("=" * 58)
 
         t0 = time.time()
