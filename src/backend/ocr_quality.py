@@ -22,7 +22,9 @@ from db import get_conn, DB_PATH          # noqa: E402
 
 # 日文假名 / 韩文 / 带重音的拉丁字母 —— OCR 认错字时最常吐出来的东西
 SUSPICIOUS = re.compile(r'[\u3040-\u30ff\uac00-\ud7afÀ-ÿĀ-ſ]')
-CJK = re.compile(r'[\u4e00-\u9fff]')
+# 题干标志性中文词：数学题中文虽少，但"设/求/已知/则"这类词一定有；
+# 纯公式碎片则一个都没有。用它替代"中文占比"规则，避免对理科题不公平。
+STEM_WORDS = re.compile(r'[设求已知则证明计算判断下列若当函数下列]')
 # 字母数字混杂的长串（如 Ox100001、xbsy6）—— 典型乱码
 GARBLED = re.compile(r'[A-Za-z0-9]{5,}')
 # 行首题号
@@ -48,11 +50,11 @@ def score_text(text: str):
         score -= 15
         reasons.append(f"可疑字符占比 {ratio:.1%}（-15）")
 
-    # 2. 中文占比过低：试卷题干通常有中文说明，纯符号说明切到的是公式碎片
-    cjk_ratio = len(CJK.findall(text)) / n
-    if cjk_ratio < 0.10:
+    # 2. 题干关键词缺失：没有"设/求/已知/则"这类词，说明切到的多半是公式碎片
+    #    （旧版用"中文占比<10%"扣分，对数学题天然不公平，已废弃）
+    if not STEM_WORDS.search(text):
         score -= 20
-        reasons.append(f"中文占比仅 {cjk_ratio:.1%}（-20）")
+        reasons.append("无题干关键词（设/求/已知/则 等）（-20）")
 
     # 3. 行首没有题号（题号被 OCR 丢失或认错）
     if not QNO_HEAD.match(text.strip()):
