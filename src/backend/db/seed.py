@@ -1,5 +1,14 @@
 # -*- coding: utf-8 -*-
-"""种子数据：开发联调用。可重复运行（每次先清空）"""
+"""种子数据：开发联调用（演示用的 1 条错题）。
+
+⚠️ 与 ocr_to_db.py 的关系：两者共用同一个 test 用户。
+默认**不会**清库，避免误跑把 OCR 入库的真题删掉。
+要重建演示数据请显式加参数：
+    python src/backend/db/seed.py --reset
+重建后需再跑一次 ocr_to_db.py 才能恢复真题：
+    python src/backend/ocr_to_db.py
+"""
+import sys
 from pathlib import Path
 from db import get_conn, DB_PATH
 
@@ -7,12 +16,21 @@ ROOT = Path(__file__).resolve().parents[3]
 OCR_FILE = ROOT / "data" / "ocr_fast_test" / "all_text.txt"
 
 
-def main():
+def main(reset=False):
     conn = get_conn()
     cur = conn.cursor()
 
-    # 0. 清空：只删 users，外键级联会自动清掉 subjects / error_items / knowledge_tags
-    cur.execute("DELETE FROM users")
+    # 0. 只有显式 --reset 才清空（外键级联会带走 subjects / error_items / knowledge_tags）
+    if reset:
+        cur.execute("DELETE FROM users")
+        print("[reset] 已清空 test 用户及其所有关联数据")
+    elif cur.execute(
+            "SELECT COUNT(*) FROM users WHERE username='test'").fetchone()[0]:
+        print("[跳过] test 用户已存在，未做任何改动")
+        print("       如需重建演示数据：python src/backend/db/seed.py --reset")
+        print("       重建后记得重跑：python src/backend/ocr_to_db.py")
+        conn.close()
+        return
 
     # 1. 用户（? 是占位符，值放第二个参数的元组里）
     cur.execute(
@@ -84,4 +102,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(reset=("--reset" in sys.argv))
