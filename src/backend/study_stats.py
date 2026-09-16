@@ -5,6 +5,9 @@
 如果分两个库，"这个学生英语单词正确率多少 + 英语错题集中在哪" 这种问题
 就得分别查两个库再在代码里拼，而现在只是几行 SQL。
 
+对外提供 collect_stats()：返回结构化字典，供 study_stats 打印、
+也供 ai_diagnose 喂给 AI —— 统计口径只有这一处定义。
+
 用法：python src/backend/study_stats.py [用户名]
 """
 import sys
@@ -14,18 +17,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "db"))
 from db import get_conn                      # noqa: E402
 
 
-def main():
-    username = sys.argv[1] if len(sys.argv) > 1 else "test"
-    conn = get_conn()
-    cur = conn.cursor()
-    uid = cur.execute(
-        "SELECT id FROM users WHERE username=?", (username,)).fetchone()[0]
-
-    print("=" * 58)
-    print(f"学情报告 · 用户 {username}")
-    print("=" * 58)
-
-    # ---------- 单词线 ----------
+def collect_stats(cur, uid: int) -> dict:
+    """采集某个用户的跨线学情数据，返回结构化字典"""
     r = cur.execute(
         "SELECT COUNT(*), COUNT(DISTINCT word_id),"
         " SUM(wrong_count), AVG(total_time_ms)"
@@ -34,63 +27,97 @@ def main():
     perfect = cur.execute(
         "SELECT COUNT(*) FROM word_records WHERE user_id=? AND wrong_count=0",
         (uid,)).fetchone()[0]
-    rate = perfect / total * 100 if total else 0
 
-    print("\n【单词线】")
-    print(f"  练习次数      {total}")
-    print(f"  涉及单词      {distinct}")
-    print(f"  一次打对率    {rate:.1f}%（{perfect}/{total}）")
-    print(f"  累计出错      {wrongs or 0} 次")
-    print(f"  平均用时      {(avg_ms or 0)/1000:.1f} 秒/词")
+    top_wrong = [{"word": row["word"], "wrong": row["s"], "count": row["c"]}
+                 for row in cur.execute(
+                     "SELECT w.word, SUM(r.wrong_count) s, COUNT(*) c"
+                     " FROM word_records r JOIN words w ON r.word_id = w.id"
+                     " WHERE r.user_id=? GROUP BY w.id"
+                     " HAVING s > 0 ORDER BY s DESC LIMIT 5", (uid,))]
 
-    print("\n  最易错的词 TOP5：")
-    for row in cur.execute(
-            "SELECT w.word, SUM(r.wrong_count) s, COUNT(*) c"
-            " FROM word_records r JOIN words w ON r.word_id = w.id"
-            " WHERE r.user_id=? GROUP BY w.id"
-            " HAVING s > 0 ORDER BY s DESC LIMIT 5", (uid,)):
-        print(f"    {row['word']:<14} 错 {row['s']} 次 / 练 {row['c']} 次")
+    by_subject = {row["name"] or "未分类": row["n"] for row in cur.execute(
+        "SELECT s.name, COUNT(*) n FROM error_items e"
+        " LEFT JOIN subjects s ON e.subject_id = s.id"
+        " WHERE e.user_id=? GROUP BY s.name", (uid,))}
 
-    # ---------- 错题线 ----------
-    print("\n【错题线】")
-    for row in cur.execute(
-            "SELECT s.name, COUNT(*) n FROM error_items e"
-            " LEFT JOIN subjects s ON e.subject_id = s.id"
-            " WHERE e.user_id=? GROUP BY s.name", (uid,)):
-        print(f"  {row['name'] or '(未分类)'}: {row['n']} 道")
-
-    for row in cur.execute(
-            "SELECT mastery_level, COUNT(*) FROM error_items"
-            " WHERE user_id=? GROUP BY mastery_level ORDER BY mastery_level",
-            (uid,)):
-        label = {0: "未掌握", 1: "复习中", 2: "已掌握"}[row[0]]
-        print(f"  {label}: {row[1]} 道")
+    by_mastery = {["未掌握", "复习中", "已掌握"][row[0]]: row[1]
+                  for row in cur.execute(
+                      "SELECT mastery_level, COUNT(*) FROM error_items"
+                      " WHERE user_id=? GROUP BY mastery_level", (uid,))}
 
     due = cur.execute(
         "SELECT COUNT(*) FROM review_schedules r"
         " JOIN error_items e ON r.error_item_id = e.id"
         " WHERE e.user_id=? AND r.completed_at IS NULL"
         " AND r.scheduled_for <= datetime('now','localtime')", (uid,)).fetchone()[0]
-    print(f"  待复习: {due} 道")
 
-    ai = cur.execute(
-        "SELECT COUNT(*) FROM error_items"
-        " WHERE user_id=? AND ai_model=?", (uid, "qwen2.5:0.5b")).fetchone()[0]
-    gate = cur.execute(
-        "SELECT COUNT(*) FROM error_items"
-        " WHERE user_id=? AND ai_model='quality_gate'", (uid,)).fetchone()[0]
-    print(f"  AI 已解析: {ai} 道 / 门禁拦下待人工: {gate} 道")
+    ai_done = cur.execute(
+        "SELECT COUNT(*) FROM error_items WHERE user_id=? AND ai_model=?",
+        (uid, "qwen2.5:0.5b")).fetchone()[0]
+    gated = cur.execute(
+        "SELECT COUNT(*) FROM error_items WHERE user_id=? AND ai_model=?",
+        (uid, "quality_gate")).fetchone()[0]
+    manual = cur.execute(
+        "SELECT COUNT(*) FROM error_items WHERE user_id=? AND ai_model=?",
+        (uid, "manual")).fetchone()[0]
 
-    # ---------- 跨线汇总 ----------
-    print("\n【跨线汇总】(以下数据需单词线和错题线 JOIN/UNION 才能得到)")
-    eng_err = cur.execute(
-        "SELECT COUNT(*) FROM error_items e JOIN subjects s ON e.subject_id=s.id"
-        " WHERE e.user_id=? AND s.name='英语'", (uid,)).fetchone()[0]
-    print(f"  单词一次打对率 {rate:.1f}%　|　数学错题 "
-          f"{cur.execute('SELECT COUNT(*) FROM error_items e JOIN subjects s ON e.subject_id=s.id WHERE e.user_id=? AND s.name=?', (uid, '数学')).fetchone()[0]} 道"
-          f"　|　英语错题 {eng_err} 道")
-    print(f"  待处理事项合计: {due + gate} 项（复习 + 人工补录）")
+    return {
+        "word": {
+            "practice_count": total,
+            "distinct_words": distinct,
+            "perfect_rate": round(perfect / total * 100, 1) if total else 0.0,
+            "total_wrong": wrongs or 0,
+            "avg_sec_per_word": round((avg_ms or 0) / 1000, 2),
+            "top_wrong_words": top_wrong,
+        },
+        "error": {
+            "by_subject": by_subject,
+            "by_mastery": by_mastery,
+            "due_review": due,
+            "ai_parsed": ai_done,
+            "gated": gated,
+            "manual": manual,
+        },
+    }
 
+
+def main():
+    username = sys.argv[1] if len(sys.argv) > 1 else "test"
+    conn = get_conn()
+    cur = conn.cursor()
+    uid = cur.execute(
+        "SELECT id FROM users WHERE username=?", (username,)).fetchone()[0]
+
+    s = collect_stats(cur, uid)
+    w, e = s["word"], s["error"]
+
+    print("=" * 58)
+    print(f"学情报告 · 用户 {username}")
+    print("=" * 58)
+    print("\n【单词线】")
+    print(f"  练习次数      {w['practice_count']}")
+    print(f"  涉及单词      {w['distinct_words']}")
+    print(f"  一次打对率    {w['perfect_rate']}%")
+    print(f"  累计出错      {w['total_wrong']} 次")
+    print(f"  平均用时      {w['avg_sec_per_word']} 秒/词")
+    if w["top_wrong_words"]:
+        print("\n  最易错的词 TOP5：")
+        for x in w["top_wrong_words"]:
+            print(f"    {x['word']:<14} 错 {x['wrong']} 次 / 练 {x['count']} 次")
+
+    print("\n【错题线】")
+    for k, v in e["by_subject"].items():
+        print(f"  {k}: {v} 道")
+    for k, v in e["by_mastery"].items():
+        print(f"  {k}: {v} 道")
+    print(f"  待复习: {e['due_review']} 道")
+    print(f"  AI 已解析 {e['ai_parsed']} 道 / 门禁拦下 {e['gated']} 道"
+          f" / 人工补录 {e['manual']} 道")
+
+    print("\n【跨线汇总】")
+    print(f"  单词一次打对率 {w['perfect_rate']}%　|　"
+          f"错题 {sum(e['by_subject'].values())} 道　|　"
+          f"待处理 {e['due_review'] + e['gated']} 项")
     conn.close()
 
 
