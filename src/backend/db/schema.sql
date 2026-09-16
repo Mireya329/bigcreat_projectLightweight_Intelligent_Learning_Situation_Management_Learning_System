@@ -21,10 +21,14 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- ---------- 2. 学科表（单词/错题共用） ----------
+-- code 是给前端筛选用的稳定英文标识，name 是中文显示名（2026-09-16 增加）
+-- 五大科目：POSTGRAD_MATH 考研数学 / POSTGRAD_ENGLISH 考研英语 /
+--          POSTGRAD_POLITICS 考研政治 / CET4 英语四级 / CET6 英语六级
 CREATE TABLE IF NOT EXISTS subjects (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name       TEXT    NOT NULL,
+  code       TEXT,                        -- 前端筛选用，见上方五大科目
   created_at TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
   UNIQUE(user_id, name)
 );

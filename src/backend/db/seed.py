@@ -42,8 +42,9 @@ def main(reset=False):
 
     # 2. 学科（多条用 executemany，一次插完）
     cur.executemany(
-        "INSERT INTO subjects (user_id, name) VALUES (?,?)",
-        [(user_id, "数学"), (user_id, "英语")],
+        "INSERT INTO subjects (user_id, name, code) VALUES (?,?,?)",
+        [(user_id, "考研数学", "POSTGRAD_MATH"),
+         (user_id, "英语四级", "CET4")],
     )
 
     # 3. 知识点

@@ -69,18 +69,23 @@ def stats(username: str = "test"):
 # ---------- 错题 ----------
 @app.get("/errors")
 def list_errors(username: str = "test", subject: Optional[str] = None,
+                subject_code: Optional[str] = None,
                 mastery: Optional[int] = None, limit: int = 50):
     conn = get_conn()
     cur = conn.cursor()
     uid = get_user_id(cur, username)
     sql = ("SELECT e.id, e.question_text, e.source, e.mastery_level,"
-           " e.ocr_quality, e.ai_model, s.name AS subject"
+           " e.ocr_quality, e.ai_model, s.name AS subject,"
+           " s.code AS subject_code"
            " FROM error_items e LEFT JOIN subjects s ON e.subject_id=s.id"
            " WHERE e.user_id=?")
     args = [uid]
     if subject:
         sql += " AND s.name=?"
         args.append(subject)
+    if subject_code:                       # 推荐前端用 code 筛选（稳定标识）
+        sql += " AND s.code=?"
+        args.append(subject_code)
     if mastery is not None:
         sql += " AND e.mastery_level=?"
         args.append(mastery)
@@ -96,7 +101,8 @@ def get_error(error_id: int):
     conn = get_conn()
     cur = conn.cursor()
     row = cur.execute(
-        "SELECT e.*, s.name AS subject FROM error_items e"
+        "SELECT e.*, s.name AS subject, s.code AS subject_code"
+        " FROM error_items e"
         " LEFT JOIN subjects s ON e.subject_id=s.id WHERE e.id=?",
         (error_id,)).fetchone()
     if not row:
