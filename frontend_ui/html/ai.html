@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -298,5 +298,28 @@
             </main>
         </div>
     </div>
+<script>
+// AI功能标签切换
+document.querySelectorAll('.ai-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+        // 移除所有标签的active样式
+        document.querySelectorAll('.ai-tab').forEach(t => t.classList.remove('active'));
+        // 给当前标签加上active样式
+        this.classList.add('active');
+    });
+});
+
+// 快捷问题点击
+document.querySelectorAll('.quick-question').forEach(function(question) {
+    question.addEventListener('click', function() {
+        // 模拟点击，静默操作
+    });
+});
+
+// 发送按钮点击
+document.querySelector('.btn-primary').addEventListener('click', function() {
+    // 静默操作，不显示任何反馈
+});
+</script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -70,7 +70,7 @@
             <!-- 页面内容区 -->
             <main class="page-content">
                 <!-- 页面标题 -->
-                <div class="page-header">
+                <div id="pageHeader" class="page-header">
                     <h1 class="page-title">词汇记忆</h1>
                     <p class="page-subtitle">选择词库，开始今天的单词学习</p>
                 </div>
@@ -79,7 +79,7 @@
                 <div class="filter-bar">
                     <div class="filter-item">
                         <label class="filter-label">科目：</label>
-                        <select class="filter-select">
+                    <select id="subjectSelect" class="filter-select">
                             <option>考研英语</option>
                             <option>英语四级</option>
                             <option>英语六级</option>
@@ -105,66 +105,62 @@
                         </select>
                     </div>
                     <div style="flex: 1;"></div>
-                    <button class="btn btn-primary btn-sm">开始学习</button>
+                    <button id="startBtn" class="btn btn-primary btn-sm">开始学习</button>
                 </div>
 
                 <!-- 学习进度卡片 -->
-                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px;">
+                <div id="statsSection" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px;">
                     <div class="card">
                         <div style="font-size: 13px; color: var(--color-text-caption); margin-bottom: 8px;">今日已学</div>
-                        <div style="font-size: 28px; font-weight: 700; color: var(--color-primary-light);">12</div>
-                        <div style="font-size: 12px; color: var(--color-text-caption); margin-top: 4px;">/ 20个</div>
+                        <div id="learnedCount" style="font-size: 28px; font-weight: 700; color: var(--color-primary-light);">0</div>
+                        <div id="totalCount" style="font-size: 12px; color: var(--color-text-caption); margin-top: 4px;">/ 10个</div>
                     </div>
                     <div class="card">
                         <div style="font-size: 13px; color: var(--color-text-caption); margin-bottom: 8px;">认识</div>
-                        <div style="font-size: 28px; font-weight: 700; color: var(--color-success);">8</div>
-                        <div style="font-size: 12px; color: var(--color-text-caption); margin-top: 4px;">正确率 67%</div>
+                        <div id="knownDisplay" style="font-size: 28px; font-weight: 700; color: var(--color-success);">0</div>
+                        <div id="accuracyDisplay" style="font-size: 12px; color: var(--color-text-caption); margin-top: 4px;">正确率 0%</div>
                     </div>
                     <div class="card">
                         <div style="font-size: 13px; color: var(--color-text-caption); margin-bottom: 8px;">不认识</div>
-                        <div style="font-size: 28px; font-weight: 700; color: var(--color-danger);">4</div>
+                        <div id="unknownDisplay" style="font-size: 28px; font-weight: 700; color: var(--color-danger);">0</div>
                         <div style="font-size: 12px; color: var(--color-text-caption); margin-top: 4px;">加入错题本</div>
                     </div>
                     <div class="card">
                         <div style="font-size: 13px; color: var(--color-text-caption); margin-bottom: 8px;">学习时长</div>
-                        <div style="font-size: 28px; font-weight: 700; color: var(--color-warning);">15</div>
-                        <div style="font-size: 12px; color: var(--color-text-caption); margin-top: 4px;">分钟</div>
+                        <div id="timeDisplay" style="font-size: 28px; font-weight: 700; color: var(--color-warning);">0</div>
+                        <div id="timeDisplayLabel" style="font-size: 12px; color: var(--color-text-caption); margin-top: 4px;">分钟</div>
                     </div>
                 </div>
 
                 <!-- 单词卡片区域 -->
-                <div class="card" style="max-width: 600px; margin: 0 auto; text-align: center; padding: 40px;">
+                <div id="wordCard" class="card" style="max-width: 600px; margin: 0 auto; text-align: center; padding: 40px;">
                     <div style="margin-bottom: 16px;">
-                        <span class="tag tag-primary">第 13 / 20 个</span>
+                        <span id="progressTag" class="tag tag-primary">第 1 / 10 个</span>
                     </div>
-                    <div style="font-size: 42px; font-weight: 700; color: var(--color-text-title); margin-bottom: 12px; letter-spacing: 2px;">
-                        vocabulary
+                    <div id="wordText" style="font-size: 42px; font-weight: 700; color: var(--color-text-title); margin-bottom: 12px; letter-spacing: 2px;">vocabulary
                     </div>
-                    <div style="font-size: 16px; color: var(--color-text-secondary); margin-bottom: 8px;">
-                        /vəˈkæbjələri/
+                    <div id="phoneticText" style="font-size: 16px; color: var(--color-text-secondary); margin-bottom: 8px;">/vəˈkæbjələri/
                     </div>
-                    <div style="font-size: 14px; color: var(--color-text-caption); margin-bottom: 24px;">
-                        n. 词汇；词汇量
+                    <div id="definitionText" style="font-size: 14px; color: var(--color-text-caption); margin-bottom: 24px;">n. 词汇；词汇量
                     </div>
                     <div style="background-color: var(--color-bg-card); border-radius: var(--radius-card); padding: 16px; margin-bottom: 24px; text-align: left;">
                         <div style="font-size: 13px; color: var(--color-text-caption); margin-bottom: 8px;">例句：</div>
-                        <div style="font-size: 14px; color: var(--color-text-body); line-height: 1.6;">
-                            She has a large vocabulary in English.<br>
+                        <div id="exampleText" style="font-size: 14px; color: var(--color-text-body); line-height: 1.6;">She has a large vocabulary in English.<br>
                             她的英语词汇量很大。
                         </div>
                     </div>
                     <div style="display: flex; gap: 16px; justify-content: center;">
-                        <button class="btn btn-danger btn-lg" style="flex: 1;">不认识</button>
-                        <button class="btn btn-success btn-lg" style="flex: 1;">认识</button>
+                        <button id="dontKnowBtn" class="btn btn-danger btn-lg" style="flex: 1;">不认识</button>
+                        <button id="knowBtn" class="btn btn-success btn-lg" style="flex: 1;">认识</button>
                     </div>
                 </div>
 
                 <!-- 底部操作栏 -->
-                <div style="display: flex; justify-content: center; gap: 12px; margin-top: 24px;">
-                    <button class="btn btn-default btn-sm">上一个</button>
-                    <button class="btn btn-default btn-sm">显示释义</button>
-                    <button class="btn btn-default btn-sm">下一个</button>
-                    <button class="btn btn-ghost btn-sm">结束学习</button>
+                <div id="bottomBar" style="display: flex; justify-content: center; gap: 12px; margin-top: 24px;">
+                    <button id="prevBtn" class="btn btn-default btn-sm">上一个</button>
+                    <button id="showDefBtn" class="btn btn-default btn-sm">显示释义</button>
+                    <button id="nextBtn" class="btn btn-default btn-sm">下一个</button>
+                    <button id="endBtn" class="btn btn-ghost btn-sm">结束学习</button>
                 </div>
             </main>
 
@@ -180,5 +176,281 @@
             </footer>
         </div>
     </div>
+<script>
+// 单词数据
+const words = [
+    { word: 'vocabulary', phonetic: '/vəˈkæbjələri/', definition: 'n. 词汇；词汇量', example: 'She has a large vocabulary in English.<br>她的英语词汇量很大。' },
+    { word: 'abandon', phonetic: '/əˈbændən/', definition: 'v. 放弃；抛弃', example: 'He abandoned his plan to study abroad.<br>他放弃了出国留学的计划。' },
+    { word: 'comprehensive', phonetic: '/ˌkɒmprɪˈhensɪv/', definition: 'adj. 综合的；全面的', example: 'We need a comprehensive review of the system.<br>我们需要对系统进行全面审查。' },
+    { word: 'fundamental', phonetic: '/ˌfʌndəˈmentl/', definition: 'adj. 基本的；根本的', example: 'Freedom of speech is a fundamental human right.<br>言论自由是一项基本人权。' },
+    { word: 'inevitable', phonetic: '/ɪnˈevɪtəbl/', definition: 'adj. 不可避免的；必然发生的', example: 'Change is inevitable in life.<br>生活中变化是不可避免的。' },
+    { word: 'perspective', phonetic: '/pəˈspektɪv/', definition: 'n. 观点；视角；远景', example: 'Try to see things from a different perspective.<br>试着从不同的角度看问题。' },
+    { word: 'sufficient', phonetic: '/səˈfɪʃnt/', definition: 'adj. 足够的；充分的', example: 'We have sufficient food for the trip.<br>我们有足够的食物去旅行。' },
+    { word: 'significant', phonetic: '/sɪɡˈnɪfɪkənt/', definition: 'adj. 重要的；显著的', example: 'There has been a significant improvement in his work.<br>他的工作有了显著的进步。' },
+    { word: 'ultimate', phonetic: '/ˈʌltɪmət/', definition: 'adj. 最终的；极限的', example: 'Their ultimate goal is to win the championship.<br>他们的最终目标是赢得冠军。' },
+    { word: 'vague', phonetic: '/veɪɡ/', definition: 'adj. 模糊的；含糊的', example: 'I have a vague memory of that day.<br>我对那天有模糊的记忆。' }
+];
+
+let currentIndex = 0;
+let knownCount = 0;
+let unknownCount = 0;
+let isDefinitionVisible = false;
+
+// 全局变量
+let timer = null;
+
+// 获取元素
+const wordText = document.getElementById('wordText');
+const phoneticText = document.getElementById('phoneticText');
+const definitionText = document.getElementById('definitionText');
+const exampleText = document.getElementById('exampleText');
+const progressTag = document.getElementById('progressTag');
+const prevBtn = document.getElementById('prevBtn');
+const showDefBtn = document.getElementById('showDefBtn');
+const nextBtn = document.getElementById('nextBtn');
+const knowBtn = document.getElementById('knowBtn');
+const dontKnowBtn = document.getElementById('dontKnowBtn');
+const endBtn = document.getElementById('endBtn');
+const learnedCount = document.getElementById('learnedCount');
+const knownDisplay = document.getElementById('knownDisplay');
+const unknownDisplay = document.getElementById('unknownDisplay');
+const accuracyDisplay = document.getElementById('accuracyDisplay');
+const timeDisplay = document.getElementById('timeDisplay');
+
+// 开始学习按钮点击事件
+document.getElementById('startBtn').addEventListener('click', function() {
+    // 先清掉旧计时器，防止多个计时器叠加
+    clearInterval(timer);
+    
+    // 重置所有状态
+    currentIndex = 0;
+    knownCount = 0;
+    unknownCount = 0;
+    
+    // 重置计时器显示
+    timeDisplay.innerText = '0';
+    document.getElementById('timeDisplayLabel').innerText = '分钟';
+    
+    // 重置结束学习按钮
+    endBtn.innerText = '结束学习';
+    endBtn.disabled = false;
+    endBtn.style.opacity = '1';
+
+    // 判断是否学完所有单词
+    let titleText, iconText;
+    if (currentIndex >= words.length - 1) {
+        titleText = '🎉 恭喜！你已经学习完所有单词了！';
+        iconText = '🎉';
+    } else {
+        titleText = '📚 本次学习结束';
+        iconText = '📚';
+    }
+
+    
+    // 显示统计卡片、单词卡片和底部操作栏
+    document.getElementById('statsSection').style.display = 'grid';
+    document.getElementById('wordCard').style.display = 'block';
+    document.getElementById('bottomBar').style.display = 'flex';
+    
+
+    
+    // 隐藏页面标题，整个界面往上移
+    document.getElementById('pageHeader').style.display = 'none';
+    
+
+    
+    // 显示第一个单词
+    showWord(0);
+    
+    // 启动学习时长计时器
+    let seconds = 0;
+    timer = setInterval(function() {
+        seconds++;
+        const min = Math.floor(seconds / 60);
+        const sec = seconds % 60;
+        timeDisplay.innerText = min + ':' + (sec < 10 ? '0' : '') + sec;
+        document.getElementById('timeDisplayLabel').innerText = '分:秒';
+    }, 1000);
+});
+
+// 显示当前单词
+function showWord(index) {
+    const word = words[index];
+    wordText.innerText = word.word;
+    phoneticText.innerText = word.phonetic;
+    definitionText.innerText = word.definition;
+    exampleText.innerHTML = word.example;
+    progressTag.innerText = '第 ' + (index + 1) + ' / ' + words.length + ' 个';
+    
+    // 更新顶部统计
+    learnedCount.innerText = knownCount + unknownCount;
+    knownDisplay.innerText = knownCount;
+    unknownDisplay.innerText = unknownCount;
+    const total = knownCount + unknownCount;
+    accuracyDisplay.innerText = total > 0 ? '正确率 ' + Math.round(knownCount / total * 100) + '%' : '正确率 0%';
+    
+    // 重置释义隐藏状态
+    isDefinitionVisible = false;
+    definitionText.style.display = 'none';
+    showDefBtn.innerText = '显示释义';
+}
+
+// 上一个单词
+prevBtn.addEventListener('click', function() {
+    if (currentIndex > 0) {
+        currentIndex--;
+        showWord(currentIndex);
+    } else {
+        // 静默：已经是第一个单词了
+    }
+});
+
+// 下一个单词
+nextBtn.addEventListener('click', function() {
+    if (currentIndex < words.length - 1) {
+        currentIndex++;
+        showWord(currentIndex);
+    } else {
+        // 静默：已经是最后一个单词了
+    }
+});
+
+// 显示/隐藏释义
+showDefBtn.addEventListener('click', function() {
+    isDefinitionVisible = !isDefinitionVisible;
+    if (isDefinitionVisible) {
+        definitionText.style.display = 'block';
+        this.innerText = '隐藏释义';
+    } else {
+        definitionText.style.display = 'none';
+        this.innerText = '显示释义';
+    }
+});
+
+// 显示学习完成统计页面的函数
+function showFinishPage() {
+    // 先更新顶部统计
+    learnedCount.innerText = knownCount + unknownCount;
+    knownDisplay.innerText = knownCount;
+    unknownDisplay.innerText = unknownCount;
+    const total = knownCount + unknownCount;
+    accuracyDisplay.innerText = total > 0 ? '正确率 ' + Math.round(knownCount / total * 100) + '%' : '正确率 0%';
+    
+    // 学习完成：隐藏开始学习按钮
+    document.getElementById('startBtn').style.display = 'none';
+    
+    // 把结束学习按钮改成已结束状态
+    endBtn.innerText = '已结束';
+    endBtn.disabled = true;
+    endBtn.style.opacity = '0.5';
+    
+    // 判断是否学完所有单词
+    let titleText, iconText;
+    if (currentIndex >= words.length - 1) {
+        titleText = '🎉 恭喜！你已经学习完所有单词了！';
+        iconText = '🎉';
+    } else {
+        titleText = '📚 本次学习结束';
+        iconText = '📚';
+    }
+    
+    const card = document.querySelector('.card[style*="max-width: 600px"]');
+    card.innerHTML = `
+        <div style="padding: 24px; text-align: center;">
+            <div style="font-size: 28px; margin-bottom: 12px;">${iconText}</div>
+            <h3 style="font-size: 18px; color: var(--color-text-title); margin-bottom: 16px;">${titleText}</h3>
+            <div style="display: flex; justify-content: center; gap: 24px; margin-bottom: 20px;">
+                <div>
+                    <div style="font-size: 22px; font-weight: 700; color: var(--color-primary-light);">${knownCount + unknownCount}</div>
+                    <div style="font-size: 12px; color: var(--color-text-caption);">已学单词</div>
+                </div>
+                <div>
+                    <div style="font-size: 22px; font-weight: 700; color: var(--color-success);">${knownCount}</div>
+                    <div style="font-size: 12px; color: var(--color-text-caption);">认识</div>
+                </div>
+                <div>
+                    <div style="font-size: 22px; font-weight: 700; color: var(--color-danger);">${unknownCount}</div>
+                    <div style="font-size: 12px; color: var(--color-text-caption);">不认识</div>
+                </div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="location.reload()">再学一组</button>
+        </div>
+    `;
+}
+
+// 认识按钮
+knowBtn.addEventListener('click', function() {
+    knownCount++;
+    if (currentIndex < words.length - 1) {
+        currentIndex++;
+        showWord(currentIndex);
+    } else {
+        showFinishPage();
+    }
+});
+
+// 不认识按钮
+dontKnowBtn.addEventListener('click', function() {
+    unknownCount++;
+    if (currentIndex < words.length - 1) {
+        currentIndex++;
+        showWord(currentIndex);
+    } else {
+        showFinishPage();
+    }
+});
+
+// 结束学习按钮
+endBtn.addEventListener('click', function() {
+    this.innerText = '已结束';
+    this.disabled = true;
+    this.style.opacity = '0.5';
+    
+    // 停止计时器
+    clearInterval(timer);
+    
+    // 显示统计页面
+    showFinishPage();
+});
+
+// 切换科目的时候重置所有状态
+document.getElementById('subjectSelect').addEventListener('change', function() {
+    // 停止计时器，防止多个计时器叠加
+    clearInterval(timer);
+    
+    // 重置时间显示
+    timeDisplay.innerText = '0';
+    document.getElementById('timeDisplayLabel').innerText = '分钟';
+    
+    // 重置所有计数
+    currentIndex = 0;
+    knownCount = 0;
+    unknownCount = 0;
+    
+    // 重置结束学习按钮
+    endBtn.innerText = '结束学习';
+    endBtn.disabled = false;
+    endBtn.style.opacity = '1';
+    
+    // 隐藏统计卡片、单词卡片和底部操作栏
+    document.getElementById('statsSection').style.display = 'none';
+    document.getElementById('wordCard').style.display = 'none';
+    document.getElementById('bottomBar').style.display = 'none';
+    
+    // 显示开始学习按钮
+    document.getElementById('startBtn').style.display = 'inline-block';
+    
+    // 显示页面标题
+    document.getElementById('pageHeader').style.display = 'block';
+    
+
+});
+
+// 初始化：先隐藏释义
+showWord(0);
+definitionText.style.display = 'none';
+
+
+</script>
 </body>
 </html>

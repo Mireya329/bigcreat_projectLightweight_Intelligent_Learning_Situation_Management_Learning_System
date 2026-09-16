@@ -165,7 +165,7 @@
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                             <div>
                                 <div style="font-size: 13px; color: var(--color-text-caption); margin-bottom: 4px;">总计划数</div>
-                                <div style="font-size: 28px; font-weight: 700; color: var(--color-primary-light);">12</div>
+                                <div id="totalPlans" style="font-size: 28px; font-weight: 700; color: var(--color-primary-light);">6</div>
                             </div>
                             <div style="width: 44px; height: 44px; border-radius: 50%; background-color: var(--color-primary-bg); display: flex; align-items: center; justify-content: center; font-size: 20px;">📋</div>
                         </div>
@@ -175,7 +175,7 @@
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                             <div>
                                 <div style="font-size: 13px; color: var(--color-text-caption); margin-bottom: 4px;">进行中</div>
-                                <div style="font-size: 28px; font-weight: 700; color: var(--color-warning);">5</div>
+                                <div id="inProgressPlans" style="font-size: 28px; font-weight: 700; color: var(--color-warning);">3</div>
                             </div>
                             <div style="width: 44px; height: 44px; border-radius: 50%; background-color: #FFFFF0; display: flex; align-items: center; justify-content: center; font-size: 20px;">⏳</div>
                         </div>
@@ -185,17 +185,17 @@
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                             <div>
                                 <div style="font-size: 13px; color: var(--color-text-caption); margin-bottom: 4px;">已完成</div>
-                                <div style="font-size: 28px; font-weight: 700; color: var(--color-success);">7</div>
+                                <div id="completedPlans" style="font-size: 28px; font-weight: 700; color: var(--color-success);">3</div>
                             </div>
                             <div style="width: 44px; height: 44px; border-radius: 50%; background-color: #F0FFF4; display: flex; align-items: center; justify-content: center; font-size: 20px;">✅</div>
                         </div>
-                        <div style="font-size: 12px; color: var(--color-success);">完成率 58.3%</div>
+                        <div id="completionRate" style="font-size: 12px; color: var(--color-success);">完成率 50%</div>
                     </div>
                     <div class="card">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                             <div>
                                 <div style="font-size: 13px; color: var(--color-text-caption); margin-bottom: 4px;">今日打卡</div>
-                                <div style="font-size: 28px; font-weight: 700; color: var(--color-info);">4/6</div>
+                                <div id="todayCheckIn" style="font-size: 28px; font-weight: 700; color: var(--color-info);">3/6</div>
                             </div>
                             <div style="width: 44px; height: 44px; border-radius: 50%; background-color: #FAF5FF; display: flex; align-items: center; justify-content: center; font-size: 20px;">🔥</div>
                         </div>
@@ -229,10 +229,10 @@
                             <div style="padding: 16px 20px; border-bottom: 1px solid var(--color-border);">
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px;">
                                     <span style="color: var(--color-text-secondary);">今日完成进度</span>
-                                    <span style="color: var(--color-primary-light); font-weight: 600;">66.7%</span>
+                                    <span id="progressText" style="color: var(--color-primary-light); font-weight: 600;">66.7%</span>
                                 </div>
                                 <div style="height: 8px; background-color: var(--color-bg-card); border-radius: 4px; overflow: hidden;">
-                                    <div style="width: 66.7%; height: 100%; background: linear-gradient(90deg, var(--color-primary-light), var(--color-primary)); border-radius: 4px;"></div>
+                                    <div id="progressBar" style="width: 66.7%; height: 100%; background: linear-gradient(90deg, var(--color-primary-light), var(--color-primary)); border-radius: 4px;"></div>
                                 </div>
                             </div>
 
@@ -490,5 +490,62 @@
             </footer>
         </div>
     </div>
+<script>
+// 任务项点击切换完成状态
+document.querySelectorAll('.task-item').forEach(function(item) {
+    item.addEventListener('click', function() {
+        this.classList.toggle('completed');
+        updateProgress();
+    });
+});
+
+// 更新进度条和顶部统计
+function updateProgress() {
+    const total = document.querySelectorAll('.task-item').length;
+    const completed = document.querySelectorAll('.task-item.completed').length;
+    const percent = Math.round(completed / total * 100);
+    
+    document.getElementById('progressBar').style.width = percent + '%';
+    
+    // 更新进度百分比文字
+    document.getElementById('progressText').innerText = percent + '%';
+    
+    // 总计划数 = 今日任务数，已完成 = 实际打勾数
+    document.getElementById('totalPlans').innerText = total;
+    document.getElementById('completedPlans').innerText = completed;
+    document.getElementById('inProgressPlans').innerText = total - completed;
+    document.getElementById('todayCheckIn').innerText = completed + '/' + total;
+    
+    // 完成率 = 已完成 / 总任务数
+    const rate = Math.round(completed / total * 100);
+    document.getElementById('completionRate').innerText = '完成率 ' + rate + '%';
+}
+
+// 日历日期点击切换选中
+document.querySelectorAll('.calendar-day').forEach(function(day) {
+    day.addEventListener('click', function() {
+        document.querySelectorAll('.calendar-day').forEach(d => d.classList.remove('selected'));
+        this.classList.add('selected');
+    });
+});
+
+// 视图切换按钮
+document.querySelectorAll('.btn-ghost.btn-sm').forEach(function(btn) {
+    if (btn.innerText.includes('列表视图') || btn.innerText.includes('日历视图')) {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.btn-ghost.btn-sm').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+        });
+    }
+});
+
+// 新增计划按钮（静默，暂时不做弹窗）
+document.querySelector('.btn-primary.btn-sm').addEventListener('click', function() {
+    // 静默操作，暂时不做弹窗
+});
+
+// 页面加载时自动更新统计，保证初始显示与实际一致
+updateProgress();
+</script>
 </body>
 </html>

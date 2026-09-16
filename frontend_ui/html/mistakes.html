@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -70,7 +70,7 @@
             <!-- 页面内容区 -->
             <main class="page-content">
                 <!-- 页面标题 -->
-                <div class="page-header">
+                <div id="pageHeader" class="page-header">
                     <h1 class="page-title">错题归档</h1>
                     <p class="page-subtitle">查看和管理所有错题，针对性复习薄弱知识点</p>
                 </div>
@@ -79,8 +79,7 @@
                 <div class="filter-bar">
                     <div class="filter-item">
                         <label class="filter-label">科目：</label>
-                        <select class="filter-select">
-                            <option>全部科目</option>
+                        <select class="filter-select" id="subjectFilter"><option>全部科目</option>
                             <option>考研政治</option>
                             <option>考研数学</option>
                             <option>考研英语</option>
@@ -90,8 +89,7 @@
                     </div>
                     <div class="filter-item">
                         <label class="filter-label">题型：</label>
-                        <select class="filter-select">
-                            <option>全部题型</option>
+                        <select class="filter-select" id="typeFilter"><option>全部题型</option>
                             <option>选择题</option>
                             <option>填空题</option>
                             <option>解答题</option>
@@ -100,8 +98,7 @@
                     </div>
                     <div class="filter-item">
                         <label class="filter-label">错误类型：</label>
-                        <select class="filter-select">
-                            <option>全部类型</option>
+                        <select class="filter-select" id="errorTypeFilter"><option>全部类型</option>
                             <option>概念不清</option>
                             <option>计算失误</option>
                             <option>审题错误</option>
@@ -110,33 +107,32 @@
                     </div>
                     <div class="filter-item">
                         <label class="filter-label">时间：</label>
-                        <select class="filter-select">
-                            <option>全部时间</option>
+                        <select class="filter-select" id="timeFilter"><option>全部时间</option>
                             <option>最近7天</option>
                             <option>最近30天</option>
                             <option>最近3个月</option>
                         </select>
                     </div>
                     <div style="flex: 1;"></div>
-                    <button class="btn btn-primary btn-sm">批量复习</button>
-                    <button class="btn btn-default btn-sm">导出错题</button>
+                    <button class="btn btn-primary btn-sm" id="batchReviewBtn">批量复习</button>
+                    <button class="btn btn-default btn-sm" id="exportBtn">导出错题</button>
                 </div>
 
                 <!-- 数据统计卡片 -->
                 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px;">
                     <div class="card">
                         <div style="font-size: 13px; color: var(--color-text-caption); margin-bottom: 8px;">错题总数</div>
-                        <div style="font-size: 28px; font-weight: 700; color: var(--color-primary-light);">128</div>
+                        <div id="totalMistakes" style="font-size: 28px; font-weight: 700; color: var(--color-primary-light);">128</div>
                         <div style="font-size: 12px; color: var(--color-text-caption); margin-top: 4px;">累计错题</div>
                     </div>
                     <div class="card">
                         <div style="font-size: 13px; color: var(--color-text-caption); margin-bottom: 8px;">已掌握</div>
-                        <div style="font-size: 28px; font-weight: 700; color: var(--color-success);">86</div>
-                        <div style="font-size: 12px; color: var(--color-text-caption); margin-top: 4px;">掌握率 67%</div>
+                        <div id="masteredCount" style="font-size: 28px; font-weight: 700; color: var(--color-success);">86</div>
+                        <div id="masteryRate" style="font-size: 12px; color: var(--color-text-caption); margin-top: 4px;">掌握率 67%</div>
                     </div>
                     <div class="card">
                         <div style="font-size: 13px; color: var(--color-text-caption); margin-bottom: 8px;">待复习</div>
-                        <div style="font-size: 28px; font-weight: 700; color: var(--color-warning);">32</div>
+                        <div id="reviewCount" style="font-size: 28px; font-weight: 700; color: var(--color-warning);">32</div>
                         <div style="font-size: 12px; color: var(--color-text-caption); margin-top: 4px;">需要复习</div>
                     </div>
                     <div class="card">
@@ -294,5 +290,104 @@
             </footer>
         </div>
     </div>
+<script>
+// 获取筛选下拉框和按钮
+const subjectFilter = document.getElementById('subjectFilter');
+const typeFilter = document.getElementById('typeFilter');
+const errorTypeFilter = document.getElementById('errorTypeFilter');
+const timeFilter = document.getElementById('timeFilter');
+const batchReviewBtn = document.getElementById('batchReviewBtn');
+const exportBtn = document.getElementById('exportBtn');
+
+// 筛选下拉框切换事件（模拟）
+subjectFilter.addEventListener('change', function() {
+    console.log('筛选科目：' + this.value);
+});
+
+typeFilter.addEventListener('change', function() {
+    console.log('筛选题型：' + this.value);
+});
+
+errorTypeFilter.addEventListener('change', function() {
+    console.log('筛选错误类型：' + this.value);
+});
+
+timeFilter.addEventListener('change', function() {
+    console.log('筛选时间：' + this.value);
+});
+
+// 批量复习按钮
+batchReviewBtn.addEventListener('click', function() {
+    // 隐藏页面标题，整个界面往上移
+    document.getElementById('pageHeader').style.display = 'none';
+});
+
+// 导出错题按钮
+exportBtn.addEventListener('click', function() {
+    console.log('导出错题');
+});
+
+// 所有错题卡片里的"标记已掌握"按钮
+document.querySelectorAll('.btn-ghost').forEach(function(btn) {
+    if (btn.innerText === '标记已掌握') {
+        btn.addEventListener('click', function() {
+            // 把按钮文字改成"已掌握"，颜色变绿
+            this.innerText = '已掌握';
+            this.classList.remove('btn-ghost');
+            this.classList.add('btn-success');
+            
+            // 更新统计
+            let mastered = parseInt(document.getElementById('masteredCount').innerText);
+            mastered++;
+            document.getElementById('masteredCount').innerText = mastered;
+            
+            // 更新掌握率
+            const total = parseInt(document.getElementById('totalMistakes').innerText);
+            const rate = Math.round(mastered / total * 100);
+            document.getElementById('masteryRate').innerText = '掌握率 ' + rate + '%';
+        });
+    }
+});
+
+// 所有"立即复习"按钮
+document.querySelectorAll('.btn-primary').forEach(function(btn) {
+    if (btn.innerText === '立即复习') {
+        btn.addEventListener('click', function() {
+            // 更新待复习数
+            let review = parseInt(document.getElementById('reviewCount').innerText);
+            if (review > 0) review--;
+            document.getElementById('reviewCount').innerText = review;
+        });
+    }
+});
+
+// 所有"查看类似题"按钮
+document.querySelectorAll('.btn-default').forEach(function(btn) {
+    if (btn.innerText === '查看类似题') {
+        btn.addEventListener('click', function() {
+            // 静默操作，不显示任何反馈
+        });
+    }
+});
+
+// 分页按钮切换
+document.querySelectorAll('.btn').forEach(function(btn) {
+    if (btn.innerText.match(/^[0-9]+$/)) {
+        btn.addEventListener('click', function() {
+            // 移除所有页码按钮的active样式
+            document.querySelectorAll('.btn').forEach(function(b) {
+                if (b.innerText.match(/^[0-9]+$/)) {
+                    b.classList.remove('btn-primary');
+                    b.classList.add('btn-default');
+                }
+            });
+            // 给当前点击的页码加上active样式
+            this.classList.remove('btn-default');
+            this.classList.add('btn-primary');
+            console.log('切换到第 ' + this.innerText + ' 页');
+        });
+    }
+});
+</script>
 </body>
 </html>
