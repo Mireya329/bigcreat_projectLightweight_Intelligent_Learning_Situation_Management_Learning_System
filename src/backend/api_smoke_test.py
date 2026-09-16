@@ -57,7 +57,7 @@ def main():
 
     s, d = call("POST", "/errors", {
         "question": "设 z = x^2 y + sin(xy)，求 ∂z/∂x 与 ∂z/∂y。",
-        "subject": "数学", "source": "接口冒烟测试", "tag": "偏导数与高阶偏导数"})
+        "subject": "考研数学", "source": "接口冒烟测试", "tag": "偏导数与高阶偏导数"})
     show("新增错题", s, d)
     new_id = d.get("id") if isinstance(d, dict) else None
 

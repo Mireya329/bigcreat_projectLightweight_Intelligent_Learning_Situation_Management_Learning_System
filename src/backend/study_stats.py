@@ -45,6 +45,15 @@ def collect_stats(cur, uid: int) -> dict:
                       "SELECT mastery_level, COUNT(*) FROM error_items"
                       " WHERE user_id=? GROUP BY mastery_level", (uid,))}
 
+    # 错误原因分布（供前端饼图）；未分类的题单列，不混进具体类别
+    type_label = {"concept": "概念不清", "calculation": "计算失误",
+                  "misread": "审题偏差", "method": "方法缺失"}
+    by_error_type = {}
+    for row in cur.execute(
+            "SELECT error_type, COUNT(*) n FROM error_items"
+            " WHERE user_id=? GROUP BY error_type", (uid,)):
+        by_error_type[type_label.get(row["error_type"], "未分类")] = row["n"]
+
     due = cur.execute(
         "SELECT COUNT(*) FROM review_schedules r"
         " JOIN error_items e ON r.error_item_id = e.id"
@@ -73,6 +82,7 @@ def collect_stats(cur, uid: int) -> dict:
         "error": {
             "by_subject": by_subject,
             "by_mastery": by_mastery,
+            "by_error_type": by_error_type,
             "due_review": due,
             "ai_parsed": ai_done,
             "gated": gated,

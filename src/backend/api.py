@@ -75,7 +75,8 @@ def list_errors(username: str = "test", subject: Optional[str] = None,
     cur = conn.cursor()
     uid = get_user_id(cur, username)
     sql = ("SELECT e.id, e.question_text, e.source, e.mastery_level,"
-           " e.ocr_quality, e.ai_model, s.name AS subject,"
+           " e.ocr_quality, e.ai_model, e.error_type, e.error_type_conf,"
+           " s.name AS subject,"
            " s.code AS subject_code"
            " FROM error_items e LEFT JOIN subjects s ON e.subject_id=s.id"
            " WHERE e.user_id=?")
@@ -120,7 +121,8 @@ def get_error(error_id: int):
 class ErrorIn(BaseModel):
     username: str = "test"
     question: str
-    subject: str = "数学"
+    subject: str = "考研数学"          # 五大科目之一
+    subject_code: str = "POSTGRAD_MATH"
     source: str = "接口录入"
     tag: Optional[str] = None
 
@@ -134,8 +136,8 @@ def create_error(body: ErrorIn):
         "SELECT id FROM subjects WHERE user_id=? AND name=?",
         (uid, body.subject)).fetchone()
     if not sub:
-        cur.execute("INSERT INTO subjects (user_id, name) VALUES (?,?)",
-                    (uid, body.subject))
+        cur.execute("INSERT INTO subjects (user_id, name, code) VALUES (?,?,?)",
+                    (uid, body.subject, body.subject_code))
         conn.commit()
         sub = cur.execute(
             "SELECT id FROM subjects WHERE user_id=? AND name=?",
