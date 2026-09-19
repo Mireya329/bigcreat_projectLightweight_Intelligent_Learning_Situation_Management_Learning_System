@@ -96,6 +96,33 @@ CREATE TABLE IF NOT EXISTS review_schedules (
 );
 CREATE INDEX IF NOT EXISTS idx_rev_sched ON review_schedules(scheduled_for);
 
+-- ---------- 6.5 刷题记录（趋势图 / 正确率的数据源） ----------
+-- 前端做题结束时汇总上报一次（不要每题一请求）。
+-- 3 号《前端图表数据需求清单》第 1 项「分科刷题正确率趋势图」依赖此表。
+CREATE TABLE IF NOT EXISTS quiz_records (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  subject_id    INTEGER REFERENCES subjects(id) ON DELETE SET NULL,
+  total_count   INTEGER NOT NULL DEFAULT 0,     -- 本次做题总数
+  correct_count INTEGER NOT NULL DEFAULT 0,     -- 做对数量
+  duration_sec  INTEGER NOT NULL DEFAULT 0,     -- 本次耗时秒
+  practiced_at  TEXT    NOT NULL DEFAULT (date('now','localtime')),
+  created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_quiz_user_date ON quiz_records(user_id, practiced_at);
+
+-- ---------- 6.6 学习计时（备考时长图的数据源） ----------
+-- 3 号清单第 5 项「备考时长堆叠柱状图」依赖此表。
+CREATE TABLE IF NOT EXISTS study_sessions (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  subject_id   INTEGER REFERENCES subjects(id) ON DELETE SET NULL,
+  duration_sec INTEGER NOT NULL DEFAULT 0,      -- 本次学习时长秒
+  studied_at   TEXT    NOT NULL DEFAULT (date('now','localtime')),
+  created_at   TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_session_user_date ON study_sessions(user_id, studied_at);
+
 -- ---------- 7. 词库元信息 ----------
 CREATE TABLE IF NOT EXISTS dicts (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,

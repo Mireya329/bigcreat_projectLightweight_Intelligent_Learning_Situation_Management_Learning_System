@@ -130,15 +130,51 @@ def collect_stats(cur, uid: int) -> dict:
             "writing": None,     # 无写作数据源
         }
 
-    # 页面顶部汇总（算不出的给 None，不编造）
+    # 刷题聚合（趋势图 + 正确率）
+    q = cur.execute(
+        "SELECT COUNT(*) sessions, SUM(total_count) total,"
+        " SUM(correct_count) correct FROM quiz_records WHERE user_id=?",
+        (uid,)).fetchone()
+    q_total, q_correct = q["total"] or 0, q["correct"] or 0
+
+    # 学习计时聚合（时长图）
+    s_today = cur.execute(
+        "SELECT SUM(duration_sec) sec FROM study_sessions"
+        " WHERE user_id=? AND studied_at=date('now','localtime')",
+        (uid,)).fetchone()["sec"] or 0
+    s_all = cur.execute(
+        "SELECT SUM(duration_sec) sec FROM study_sessions WHERE user_id=?",
+        (uid,)).fetchone()["sec"] or 0
+
+    # 页面顶部汇总（算不出的仍给 None，不编造）
     summary = {
         "total_errors": sum(by_subject.values()),
         "mastered_errors": by_mastery.get("已掌握", 0),
-        "total_practice_count": None,     # 需要刷题记录表，暂无
-        "total_study_hours": None,        # 需要计时数据，暂无
-        "today_study_hours": None,
-        "accuracy": None,                 # 正确率依赖刷题记录，暂无
+        "total_practice_count": q_total,
+        "total_study_hours": round(s_all / 3600, 2),
+        "today_study_hours": round(s_today / 3600, 2),
+        "accuracy": round(q_correct / q_total * 100, 1) if q_total else None,
     }
+
+    # 趋势图：按天 × 科目 的正确率（3 号清单第 1 项）
+    trend = [{"date": r["d"], "subject": r["code"], "rate": round(r["c"] / r["t"] * 100, 1)}
+             for r in cur.execute(
+                 "SELECT q.practiced_at d, s.code, SUM(q.total_count) t,"
+                 " SUM(q.correct_count) c FROM quiz_records q"
+                 " LEFT JOIN subjects s ON q.subject_id=s.id"
+                 " WHERE q.user_id=? GROUP BY d, s.code ORDER BY d, s.code",
+                 (uid,)) if r["t"]]
+
+    # 时长图：最近 7 天，按天 × 科目 的小时数（3 号清单第 5 项）
+    by_day: dict = {}
+    for r in cur.execute(
+            "SELECT ss.studied_at d, s.code, SUM(ss.duration_sec) sec"
+            " FROM study_sessions ss LEFT JOIN subjects s ON ss.subject_id=s.id"
+            " WHERE ss.user_id=? AND ss.studied_at >= date('now','localtime','-7 days')"
+            " GROUP BY d, s.code ORDER BY d", (uid,)):
+        day = by_day.setdefault(r["d"], {"date": r["d"]})
+        day[r["code"] or "other"] = round(r["sec"] / 3600, 2)
+    duration = [by_day[k] for k in sorted(by_day)]
 
     return {
         "word": {
@@ -162,17 +198,14 @@ def collect_stats(cur, uid: int) -> dict:
         "weak_points": weak_points,
         "radar": radar,
         "summary": summary,
-        # 趋势图/时长图：库里没有"刷题记录"和"学习计时"数据源，先返回空数组占位。
-        # 格式已按 3 号要求定好，等新增表后直接填充。
-        "trend": [],
-        "duration": [],
+        "trend": trend,
+        "duration": duration,
         "_missing": {
-            "trend": "需要刷题记录表（按天记 科目/做题数/正确数），库里暂无该表",
-            "duration": "需要学习计时表（按天记各科时长），库里暂无该表",
-            "radar_recite": "背诵维度无数据源",
-            "radar_writing": "写作维度无数据源",
-            "summary_accuracy": "总正确率依赖刷题记录，暂无",
+            "radar_recite": "背诵维度无数据源（系统暂无背诵功能）",
+            "radar_writing": "写作维度无数据源（系统暂无写作功能）",
         },
+        "_note": ("trend/duration 依赖前端上报：POST /practice/quiz 与 "
+                  "POST /practice/session；当前若无上报则为空数组"),
     }
 
 

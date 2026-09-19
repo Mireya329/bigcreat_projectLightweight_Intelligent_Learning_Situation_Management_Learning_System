@@ -72,6 +72,15 @@ def main():
         "word": "carrier", "wrong_count": 2, "total_time_ms": 1800})
     show("上报练习记录", s, d)
 
+    s, d = call("POST", "/practice/quiz", {
+        "subject_code": "POSTGRAD_MATH", "total": 20, "correct": 15,
+        "duration_sec": 1800})
+    show("上报刷题记录", s, d)
+
+    s, d = call("POST", "/practice/session", {
+        "subject_code": "POSTGRAD_MATH", "duration_sec": 3600})
+    show("上报学习计时", s, d)
+
     s, d = call("GET", "/review/due")
     show("待复习列表", s, d)
 

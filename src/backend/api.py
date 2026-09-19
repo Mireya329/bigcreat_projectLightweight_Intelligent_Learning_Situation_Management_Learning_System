@@ -198,6 +198,74 @@ def due_reviews(username: str = "test"):
     return {"count": len(rows), "items": rows}
 
 
+class QuizIn(BaseModel):
+    username: str = "test"
+    subject_code: str = "POSTGRAD_MATH"
+    total: int
+    correct: int
+    duration_sec: int = 0
+    practiced_at: Optional[str] = None     # YYYY-MM-DD，不传则默认今天
+
+
+@app.post("/practice/quiz")
+def add_quiz(body: QuizIn):
+    """上报一次刷题记录（趋势图 + 正确率的数据源）。
+    建议一次练习结束调用一次，不要每题一请求。"""
+    if body.correct > body.total:
+        raise HTTPException(400, "correct 不能大于 total")
+    conn = get_conn()
+    cur = conn.cursor()
+    uid = get_user_id(cur, body.username)
+    sub = cur.execute("SELECT id FROM subjects WHERE user_id=? AND code=?",
+                      (uid, body.subject_code)).fetchone()
+    if body.practiced_at:
+        cur.execute(
+            "INSERT INTO quiz_records (user_id, subject_id, total_count,"
+            " correct_count, duration_sec, practiced_at) VALUES (?,?,?,?,?,?)",
+            (uid, sub["id"] if sub else None, body.total, body.correct,
+             body.duration_sec, body.practiced_at))
+    else:
+        cur.execute(
+            "INSERT INTO quiz_records (user_id, subject_id, total_count,"
+            " correct_count, duration_sec) VALUES (?,?,?,?,?)",
+            (uid, sub["id"] if sub else None, body.total, body.correct,
+             body.duration_sec))
+    conn.commit()
+    conn.close()
+    return {"ok": True,
+            "rate": round(body.correct / body.total * 100, 1) if body.total else 0.0}
+
+
+class SessionIn(BaseModel):
+    username: str = "test"
+    subject_code: str = "POSTGRAD_MATH"
+    duration_sec: int
+    studied_at: Optional[str] = None       # YYYY-MM-DD，不传则默认今天
+
+
+@app.post("/practice/session")
+def add_session(body: SessionIn):
+    """上报一段学习计时（备考时长图的数据源）"""
+    conn = get_conn()
+    cur = conn.cursor()
+    uid = get_user_id(cur, body.username)
+    sub = cur.execute("SELECT id FROM subjects WHERE user_id=? AND code=?",
+                      (uid, body.subject_code)).fetchone()
+    if body.studied_at:
+        cur.execute(
+            "INSERT INTO study_sessions (user_id, subject_id, duration_sec,"
+            " studied_at) VALUES (?,?,?,?)",
+            (uid, sub["id"] if sub else None, body.duration_sec, body.studied_at))
+    else:
+        cur.execute(
+            "INSERT INTO study_sessions (user_id, subject_id, duration_sec)"
+            " VALUES (?,?,?)",
+            (uid, sub["id"] if sub else None, body.duration_sec))
+    conn.commit()
+    conn.close()
+    return {"ok": True, "hours": round(body.duration_sec / 3600, 2)}
+
+
 # ---------- 单词 ----------
 @app.get("/words/wrong-top")
 def wrong_top(username: str = "test", limit: int = 10):
