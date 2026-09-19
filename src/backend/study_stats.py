@@ -70,6 +70,76 @@ def collect_stats(cur, uid: int) -> dict:
         "SELECT COUNT(*) FROM error_items WHERE user_id=? AND ai_model=?",
         (uid, "manual")).fetchone()[0]
 
+    # ---- 以下为响应 3 号《前端图表数据需求清单》（2026-09-19）新增 ----
+
+    # 科目 × 题型（柱状图）
+    by_question_type: dict = {}
+    for row in cur.execute(
+            "SELECT s.code, e.question_type, COUNT(*) n FROM error_items e"
+            " LEFT JOIN subjects s ON e.subject_id=s.id WHERE e.user_id=?"
+            " GROUP BY s.code, e.question_type", (uid,)):
+        code = row["code"] or "UNKNOWN"
+        slot = by_question_type.setdefault(
+            code, {"choice": 0, "fill": 0, "essay": 0, "writing": 0, "unknown": 0})
+        slot[row["question_type"] or "unknown"] = row["n"]
+
+    # 薄弱考点 TOP10（横向条形图）
+    weak_points = [{"point": r["name"], "subject_code": r["code"], "count": r["n"]}
+                   for r in cur.execute(
+                       "SELECT t.name, s.code, COUNT(*) n FROM error_item_tags et"
+                       " JOIN knowledge_tags t ON et.tag_id=t.id"
+                       " JOIN error_items e ON et.error_item_id=e.id"
+                       " LEFT JOIN subjects s ON e.subject_id=s.id"
+                       " WHERE e.user_id=? GROUP BY t.id ORDER BY n DESC LIMIT 10",
+                       (uid,))]
+
+    # 雷达图：五科目 × 六维度（0-100）。算不出的维度返回 None，绝不用随机数填充
+    radar: dict = {}
+    codes = [r["code"] for r in cur.execute(
+        "SELECT DISTINCT code FROM subjects WHERE user_id=? AND code IS NOT NULL",
+        (uid,))]
+
+    def mastered_of(code, qtype):
+        row = cur.execute(
+            "SELECT COUNT(*) total,"
+            " SUM(CASE WHEN mastery_level >= 1 THEN 1 ELSE 0 END) ok"
+            " FROM error_items e JOIN subjects s ON e.subject_id=s.id"
+            " WHERE e.user_id=? AND s.code=? AND e.question_type=?",
+            (uid, code, qtype)).fetchone()
+        total = row["total"] or 0
+        return round(row["ok"] / total * 100, 1) if total else None
+
+    for code in codes:
+        total = cur.execute(
+            "SELECT COUNT(*) n FROM error_items e JOIN subjects s"
+            " ON e.subject_id=s.id WHERE e.user_id=? AND s.code=?",
+            (uid, code)).fetchone()["n"]
+        calc_wrong = cur.execute(
+            "SELECT COUNT(*) n FROM error_items e JOIN subjects s"
+            " ON e.subject_id=s.id WHERE e.user_id=? AND s.code=?"
+            " AND e.error_type='calculation'", (uid, code)).fetchone()["n"]
+        radar[code] = {
+            # 单词维度目前只有英语类科目有数据，其余给 None
+            "vocabulary": (round(perfect / total * 100, 1)
+                           if total and code in ("CET4", "CET6", "POSTGRAD_ENGLISH")
+                           else None),
+            "choice": mastered_of(code, "choice"),
+            "essay": mastered_of(code, "essay"),
+            "recite": None,      # 无背诵数据源
+            "calculate": (round(100 - calc_wrong / total * 100, 1) if total else None),
+            "writing": None,     # 无写作数据源
+        }
+
+    # 页面顶部汇总（算不出的给 None，不编造）
+    summary = {
+        "total_errors": sum(by_subject.values()),
+        "mastered_errors": by_mastery.get("已掌握", 0),
+        "total_practice_count": None,     # 需要刷题记录表，暂无
+        "total_study_hours": None,        # 需要计时数据，暂无
+        "today_study_hours": None,
+        "accuracy": None,                 # 正确率依赖刷题记录，暂无
+    }
+
     return {
         "word": {
             "practice_count": total,
@@ -83,10 +153,25 @@ def collect_stats(cur, uid: int) -> dict:
             "by_subject": by_subject,
             "by_mastery": by_mastery,
             "by_error_type": by_error_type,
+            "by_question_type": by_question_type,
             "due_review": due,
             "ai_parsed": ai_done,
             "gated": gated,
             "manual": manual,
+        },
+        "weak_points": weak_points,
+        "radar": radar,
+        "summary": summary,
+        # 趋势图/时长图：库里没有"刷题记录"和"学习计时"数据源，先返回空数组占位。
+        # 格式已按 3 号要求定好，等新增表后直接填充。
+        "trend": [],
+        "duration": [],
+        "_missing": {
+            "trend": "需要刷题记录表（按天记 科目/做题数/正确数），库里暂无该表",
+            "duration": "需要学习计时表（按天记各科时长），库里暂无该表",
+            "radar_recite": "背诵维度无数据源",
+            "radar_writing": "写作维度无数据源",
+            "summary_accuracy": "总正确率依赖刷题记录，暂无",
         },
     }
 
