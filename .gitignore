@@ -17,3 +17,15 @@ __pycache__/
 # 临时文件
 *.log
 *.tmp
+
+# ============ 2026-09-19 补充 ============
+# 原始素材与大文件（1.9MB 起的试卷图片，不进仓库）
+data/*.jpg
+data/*.png
+data/ocr_real_test/
+
+# 安装包
+installers/
+
+# 克隆来的上游开源项目（各自带 .git，体量巨大）
+upstream/
