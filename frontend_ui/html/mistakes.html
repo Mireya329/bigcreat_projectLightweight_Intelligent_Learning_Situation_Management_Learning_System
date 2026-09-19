@@ -79,12 +79,12 @@
                 <div class="filter-bar">
                     <div class="filter-item">
                         <label class="filter-label">科目：</label>
-                        <select class="filter-select" id="subjectFilter"><option>全部科目</option>
-                            <option>考研政治</option>
-                            <option>考研数学</option>
-                            <option>考研英语</option>
-                            <option>英语四级</option>
-                            <option>英语六级</option>
+                        <select class="filter-select" id="subjectFilter"><option value="all">全部科目</option>
+                            <option value="POSTGRAD_POLITICS">考研政治</option>
+                            <option value="POSTGRAD_MATH">考研数学</option>
+                            <option value="POSTGRAD_ENGLISH">考研英语</option>
+                            <option value="CET4">英语四级</option>
+                            <option value="CET6">英语六级</option>
                         </select>
                     </div>
                     <div class="filter-item">
@@ -98,11 +98,24 @@
                     </div>
                     <div class="filter-item">
                         <label class="filter-label">错误类型：</label>
-                        <select class="filter-select" id="errorTypeFilter"><option>全部类型</option>
-                            <option>概念不清</option>
-                            <option>计算失误</option>
-                            <option>审题错误</option>
-                            <option>知识遗忘</option>
+                        <select class="filter-select" id="errorTypeFilter">
+                            <option value="all">全部类型</option>
+                            <option value="concept">概念不清</option>
+                            <option value="calculation">计算失误</option>
+                            <option value="misread">审题偏差</option>
+                            <option value="method">方法缺失</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label class="filter-label">知识点标签：</label>
+                        <select class="filter-select" id="tagFilter">
+                            <option>全部标签</option>
+                            <option value="philosophy">哲学</option>
+                            <option value="political_economy">政治经济学</option>
+                            <option value="calculus">微积分</option>
+                            <option value="linear_algebra">线性代数</option>
+                            <option value="grammar">语法词汇</option>
+                            <option value="reading">阅读理解</option>
                         </select>
                     </div>
                     <div class="filter-item">
@@ -327,36 +340,53 @@ exportBtn.addEventListener('click', function() {
     console.log('导出错题');
 });
 
-// 所有错题卡片里的"标记已掌握"按钮
+// 掌握度按钮：两态切换（未掌握 ↔ 已掌握）
 document.querySelectorAll('.btn-ghost').forEach(function(btn) {
     if (btn.innerText === '标记已掌握') {
         btn.addEventListener('click', function() {
-            // 把按钮文字改成"已掌握"，颜色变绿
-            this.innerText = '已掌握';
-            this.classList.remove('btn-ghost');
-            this.classList.add('btn-success');
-            
-            // 更新统计
-            let mastered = parseInt(document.getElementById('masteredCount').innerText);
-            mastered++;
-            document.getElementById('masteredCount').innerText = mastered;
-            
-            // 更新掌握率
             const total = parseInt(document.getElementById('totalMistakes').innerText);
+            let mastered = parseInt(document.getElementById('masteredCount').innerText);
+
+            if (this.dataset.done !== '1') {
+                // 未掌握 → 已掌握（绿色）
+                this.dataset.done = '1';
+                this.innerText = '已掌握';
+                this.classList.remove('btn-ghost');
+                this.classList.add('btn-success');
+                mastered++;
+            } else {
+                // 已掌握 → 未掌握（灰色，恢复）
+                this.dataset.done = '';
+                this.innerText = '标记已掌握';
+                this.classList.remove('btn-success');
+                this.classList.add('btn-ghost');
+                mastered--;
+            }
+
+            document.getElementById('masteredCount').innerText = mastered;
             const rate = Math.round(mastered / total * 100);
             document.getElementById('masteryRate').innerText = '掌握率 ' + rate + '%';
         });
     }
 });
 
-// 所有"立即复习"按钮
+// 所有"立即复习"按钮：点过一次后变灰，再点不重复减
 document.querySelectorAll('.btn-primary').forEach(function(btn) {
     if (btn.innerText === '立即复习') {
         btn.addEventListener('click', function() {
+            // 已经复习过的不再重复减
+            if (this.dataset.reviewed === '1') return;
+            this.dataset.reviewed = '1';
+
             // 更新待复习数
             let review = parseInt(document.getElementById('reviewCount').innerText);
             if (review > 0) review--;
             document.getElementById('reviewCount').innerText = review;
+
+            // 按钮变灰、文字改"已复习"
+            this.innerText = '已复习';
+            this.classList.remove('btn-primary');
+            this.classList.add('btn-default');
         });
     }
 });

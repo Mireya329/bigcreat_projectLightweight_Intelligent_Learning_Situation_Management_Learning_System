@@ -214,6 +214,16 @@ tr:hover {
     box-shadow: 0 4px 12px rgba(229, 62, 62, 0.4);
 }
 
+.btn-warning {
+    background-color: var(--color-warning);
+    color: var(--color-white);
+}
+
+.btn-warning:hover {
+    background-color: #B7791F;
+    box-shadow: 0 4px 12px rgba(214, 158, 46, 0.4);
+}
+
 .btn-default {
     background-color: var(--color-white);
     color: var(--color-text-secondary);
