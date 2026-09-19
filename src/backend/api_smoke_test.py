@@ -84,6 +84,17 @@ def main():
     s, d = call("GET", "/review/due")
     show("待复习列表", s, d)
 
+    print("\n--- Anki 间隔重复 ---")
+    s, d = call("GET", "/anki/due?limit=3")
+    show("今日到期卡片", s, d)
+
+    first = (d.get("items") or [{}])[0].get("id") if isinstance(d, dict) else None
+    if first:
+        s, d = call("POST", "/anki/review", {"card_id": first, "quality": 4})
+        show(f"复习卡片 {first}(q=4)", s, d)
+        s, d = call("POST", "/anki/review", {"card_id": first, "quality": 9})
+        print(f"{'✅' if s == 400 else '❌'} 非法 quality=9 应返回 400  HTTP {s}")
+
     print("\n全部接口测试完成")
 
 

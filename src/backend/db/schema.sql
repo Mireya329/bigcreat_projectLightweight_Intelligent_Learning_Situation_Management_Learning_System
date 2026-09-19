@@ -96,6 +96,25 @@ CREATE TABLE IF NOT EXISTS review_schedules (
 );
 CREATE INDEX IF NOT EXISTS idx_rev_sched ON review_schedules(scheduled_for);
 
+-- ---------- 6.4 Anki 卡片（间隔重复复习） ----------
+-- 3 号《前端冗余模块删减清单》保留清单注明：SM-2 算法由 2 号后端移植
+CREATE TABLE IF NOT EXISTS anki_cards (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  error_item_id   INTEGER REFERENCES error_items(id) ON DELETE CASCADE,
+  word_id         INTEGER REFERENCES words(id) ON DELETE SET NULL,
+  front           TEXT    NOT NULL,          -- 卡片正面（题干/单词）
+  back            TEXT,                      -- 卡片背面（答案/释义）
+  ef              REAL    NOT NULL DEFAULT 2.5,   -- 难度因子
+  interval_days   INTEGER NOT NULL DEFAULT 0,     -- 当前间隔天数
+  repetitions     INTEGER NOT NULL DEFAULT 0,     -- 连续答对次数
+  due_date        TEXT    NOT NULL DEFAULT (date('now','localtime')),
+  last_reviewed_at TEXT,
+  created_at      TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_anki_due ON anki_cards(user_id, due_date);
+
+
 -- ---------- 6.5 刷题记录（趋势图 / 正确率的数据源） ----------
 -- 前端做题结束时汇总上报一次（不要每题一请求）。
 -- 3 号《前端图表数据需求清单》第 1 项「分科刷题正确率趋势图」依赖此表。

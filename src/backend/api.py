@@ -306,3 +306,79 @@ def add_practice(body: PracticeIn):
     conn.commit()
     conn.close()
     return {"word": body.word, "linked": w is not None}
+
+# ---------- Anki 间隔重复复习 ----------
+class CardIn(BaseModel):
+    username: str = "test"
+    front: str
+    back: str = ""
+    error_item_id: Optional[int] = None
+    word_id: Optional[int] = None
+
+
+@app.post("/anki/cards")
+def create_card(body: CardIn):
+    """新建一张记忆卡片"""
+    conn = get_conn()
+    cur = conn.cursor()
+    uid = get_user_id(cur, body.username)
+    cur.execute(
+        "INSERT INTO anki_cards (user_id, error_item_id, word_id, front, back)"
+        " VALUES (?,?,?,?,?)",
+        (uid, body.error_item_id, body.word_id, body.front, body.back))
+    conn.commit()
+    cid = cur.lastrowid
+    conn.close()
+    return {"id": cid}
+
+
+@app.get("/anki/due")
+def due_cards(username: str = "test", limit: int = 20):
+    """今日到期待复习的卡片"""
+    conn = get_conn()
+    cur = conn.cursor()
+    uid = get_user_id(cur, username)
+    rows = rows_to_dicts(cur.execute(
+        "SELECT id, front, back, ef, interval_days, repetitions, due_date"
+        " FROM anki_cards WHERE user_id=? AND due_date <= date('now','localtime')"
+        " ORDER BY due_date LIMIT ?", (uid, limit)).fetchall())
+    conn.close()
+    return {"count": len(rows), "items": rows}
+
+
+class ReviewIn(BaseModel):
+    card_id: int
+    quality: int                       # 0~5
+    username: str = "test"
+
+
+@app.post("/anki/review")
+def review_card(body: ReviewIn):
+    """提交一次复习结果，按 SM-2 更新卡片并返回下次到期日"""
+    # 先校验：不校验的话 quality=9 会让内部抛 ValueError，
+    # 接口直接 500 且返回空内容，前端拿不到任何提示（实测踩过）
+    if not 0 <= body.quality <= 5:
+        raise HTTPException(400, "quality 必须在 0~5 之间")
+    from datetime import date
+    from anki_sm2 import review as sm2_review      # 复用第 2 步的纯函数
+
+    conn = get_conn()
+    cur = conn.cursor()
+    uid = get_user_id(cur, body.username)
+    row = cur.execute(
+        "SELECT * FROM anki_cards WHERE id=? AND user_id=?",
+        (body.card_id, uid)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, f"卡片 {body.card_id} 不存在")
+
+    r = sm2_review(row["ef"], row["interval_days"], row["repetitions"],
+                   body.quality, date.today())
+    cur.execute(
+        "UPDATE anki_cards SET ef=?, interval_days=?, repetitions=?,"
+        " due_date=?, last_reviewed_at=datetime('now','localtime') WHERE id=?",
+        (r["ef"], r["interval_days"], r["repetitions"], r["due_date"],
+         body.card_id))
+    conn.commit()
+    conn.close()
+    return {"card_id": body.card_id, **r}
