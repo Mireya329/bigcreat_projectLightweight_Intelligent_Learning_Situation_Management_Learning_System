@@ -29,3 +29,6 @@ installers/
 
 # 克隆来的上游开源项目（各自带 .git，体量巨大）
 upstream/
+
+# AI 工具技能文件（非项目代码）
+.claude/
