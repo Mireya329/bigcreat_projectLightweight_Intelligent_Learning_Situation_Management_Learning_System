@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 HERE = Path(__file__).resolve().parent
@@ -30,6 +31,28 @@ from ocr_quality import score_text        # noqa: E402
 from study_stats import collect_stats     # noqa: E402
 
 app = FastAPI(title="学情管理系统 API", version="0.1.0")
+
+# 跨域：前端（Qwerty Learner / wrong-notebook 跑在 3000 等端口）直接 fetch 本服务时，
+# 浏览器会先发 OPTIONS 预检并校验 CORS 头，不配置会全部被拦截。
+# 本地开发阶段放开所有来源；上线前应收紧为具体域名。
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/")
+def root():
+    """根路径给个指引，队友打开 8000 端口不至于一脸懵"""
+    return {
+        "service": "学情管理系统后端 API",
+        "docs": "http://127.0.0.1:8000/docs",
+        "health": "http://127.0.0.1:8000/health",
+        "stats": "http://127.0.0.1:8000/stats",
+        "tip": "完整接口说明见 /docs，字段含义见 docs/后端字段字典.md",
+    }
 
 
 # ---------- 小工具 ----------
