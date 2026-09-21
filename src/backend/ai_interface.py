@@ -216,6 +216,7 @@ class AIResponse:
     data: Optional[dict] = None
     model: str = ""
     error: Optional[str] = None         # 失败原因
+    retries: int = 0                    # 实际重试次数（0=一次通过）
 
     def to_envelope(self) -> dict:
         """队长协议返回体：{code, scene, data, raw, model, elapsed_ms}"""
@@ -546,6 +547,28 @@ def validate(scene: str, data: Any) -> tuple[bool, str]:
     return True, ""
 
 
+def normalize_error_analysis(data: dict) -> dict:
+    """以 error_type 为准，修正模型乱给的 error_type_label。
+
+    真机实测（2026-09-21，0.5b）发现模型会把 label 填成：
+      - 自造长句（"区间外函数与区间内函数的函数关系"）
+      - 与 code 错配（method_gap 却写"计算失误"）
+    协议里 label 是给人看的，必须与 code 一一对应，所以由我侧按映射表覆盖，
+    不信模型的。同时把 confidence 收敛成 float，避免 1 / "0.8" 混着存。
+    """
+    out = dict(data)
+    et = str(out.get("error_type", "")).strip().lower()
+    out["error_type"] = et
+    out["error_type_label"] = ERROR_TYPE_CODES.get(et, "")
+    try:
+        out["error_confidence"] = round(float(out.get("error_confidence")), 3)
+    except (TypeError, ValueError):
+        out["error_confidence"] = 0.0
+    kp = out.get("knowledge_points")
+    out["knowledge_points"] = [str(x) for x in kp] if isinstance(kp, list) else []
+    return out
+
+
 def render_content(scene: str, data: dict) -> str:
     """把结构化 data 渲染成人能读的文本。
 
@@ -675,10 +698,12 @@ def call_ai(req: AIRequest) -> AIResponse:
         else:
             ok, why = validate(scene, parsed)
             if ok:
+                if scene == "error_analysis":
+                    parsed = normalize_error_analysis(parsed)
                 return AIResponse(
                     ok=True, scene=scene, content=render_content(scene, parsed),
                     raw={"text": text}, elapsed_ms=int((time.time() - t0) * 1000),
-                    code=0, data=parsed, model=model_used,
+                    code=0, data=parsed, model=model_used, retries=attempt,
                 )
             last_err = why
 
@@ -687,7 +712,7 @@ def call_ai(req: AIRequest) -> AIResponse:
         ok=False, scene=scene, content="",
         raw={"text": last_raw, "reason": last_err, "retried": MAX_RETRY},
         elapsed_ms=int((time.time() - t0) * 1000),
-        code=1, data=None, model=model_used,
+        code=1, data=None, model=model_used, retries=MAX_RETRY,
         error=f"格式校验未通过（已重试 {MAX_RETRY} 次）: {last_err}",
     )
 
@@ -872,9 +897,27 @@ def _selftest(live: bool = False) -> int:
     print("\n[8] 渲染（入库文本由 data 生成，非模型原文）")
     print("  " + render_content("error_analysis", good).splitlines()[0])
 
+    print("\n[9] label 归一：以 error_type 为准，不信模型的 label")
+    # 真机实测（2026-09-21）模型给过的三种错配
+    for et, bad_label, expect in (
+            ("misread_question", "函数定义错误", "审题偏差"),
+            ("method_gap", "计算失误", "方法缺失"),
+            ("method_gap", "区间外函数与区间内函数的函数关系", "方法缺失")):
+        n = normalize_error_analysis(
+            {"error_type": et, "error_type_label": bad_label,
+             "error_confidence": "0.85", "knowledge_points": "不是数组"})
+        got = n["error_type_label"]
+        print(f"  ✓ {et} + 「{bad_label}」 → {got}")
+        assert got == expect, f"{et} 的 label 应为 {expect}，实际 {got}"
+        assert n["error_confidence"] == 0.85, "confidence 应收敛成 float"
+        assert n["knowledge_points"] == [], "非数组 knowledge_points 应清空"
+    upper = normalize_error_analysis({"error_type": "CALCULATION_ERROR"})
+    assert upper["error_type"] == "calculation_error", "code 应归一小写"
+    print("  ✓ 大小写变体归一：CALCULATION_ERROR → calculation_error")
+
     # --- 2. 真机自测 ---
     if live:
-        print("\n[9] 实时调用")
+        print("\n[10] 实时调用")
         if not check_ollama_alive():
             print("  ⚠️ 模型服务不在线，跳过（先启动 Ollama）")
             return 0
@@ -892,7 +935,7 @@ def _selftest(live: bool = False) -> int:
             if env["code"] == 0:
                 print("    " + resp.content.splitlines()[0][:56])
     else:
-        print("\n[9] 实时调用：跳过（加 --live 开启，需模型服务在线）")
+        print("\n[10] 实时调用：跳过（加 --live 开启，需模型服务在线）")
 
     print("\n全部通过。")
     return 0
