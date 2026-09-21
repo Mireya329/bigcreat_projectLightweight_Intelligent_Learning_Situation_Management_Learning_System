@@ -135,8 +135,40 @@ def main():
     check("未抛异常（调用方能继续跑批）", True)
     check("data 为 None", r.data is None)
 
-    # ---- 8. 旧名兼容 ----
-    print("\n[8] 旧调用方兼容（ok / content / elapsed_ms）")
+    # ---- 8. 稳定性校验：分类一致 ----
+    print("\n[8] 稳定性校验：两轮分类一致 → 照常返回")
+    s = stub(GOOD, GOOD)
+    r = ai.analyze_error("求导数", "8", stable=True)
+    check("两轮各调用 1 次（共 2 次）", s["n"] == 2, f"实际 {s['n']} 次")
+    check("stable 为 True", r.data.get("stable") is True)
+    check("置信度取多轮最小值", r.data["error_confidence"] == 0.8,
+          f"实际 {r.data['error_confidence']}")
+    check("解析文本保留", "正确解题思路" in r.content)
+
+    # ---- 9. 稳定性校验：分类不一致 → 置信度置 0，转人工复核 ----
+    print("\n[9] 稳定性校验：两轮分类不一致 → 置 0 转人工复核")
+    other = GOOD.replace("calculation_error", "method_gap")
+    s = stub(GOOD, other)
+    r = ai.analyze_error("求导数", "9", stable=True)
+    check("code 仍为 0（解析可用，不是模型异常）", r.code == 0, f"实际 {r.code}")
+    check("stable 为 False", r.data.get("stable") is False)
+    check("置信度被置 0", r.data["error_confidence"] == 0.0,
+          f"实际 {r.data['error_confidence']}")
+    check("need_review 为真 → error_type 不入库", r.need_review is True)
+    check("解析文本仍然保留（不浪费这一次调用）", "正确解题思路" in r.content)
+    check("reason 里写明未通过稳定性校验",
+          "稳定性校验" in str(r.data.get("error_reason", "")))
+    check("raw 保留两轮原始输出", len(r.raw.get("rounds", [])) == 2)
+
+    # ---- 10. 稳定性校验：其中一轮降级 ----
+    print("\n[10] 稳定性校验：一轮成功一轮降级 → 以成功的为准")
+    s = stub(GOOD, PROSE, PROSE)
+    r = ai.analyze_error("求导数", "10", stable=True)
+    check("code == 0", r.code == 0, f"实际 {r.code}")
+    check("用上了成功那轮的结果", r.data is not None)
+
+    # ---- 11. 旧名兼容 ----
+    print("\n[11] 旧调用方兼容（ok / content / elapsed_ms）")
     s = stub(GOOD)
     r = ai.explain_wrong_question("求导数", "7")     # 旧函数
     check("旧函数仍可用", r.ok is True and r.content and r.elapsed_ms >= 0)

@@ -76,6 +76,15 @@ MAX_RETRY = 1
 # 置信度阈值：低于此值打"待人工复核"，不自动入库
 CONFIDENCE_THRESHOLD = 0.5
 
+# 稳定性校验：同一题多跑几次，分类一致才信。
+#   背景（2026-09-21 真机实测）：0.5b 分类不可复现，5 题 × 3 次仅 1/5 一致，
+#   且模型会在随机分类上给满把握，所以 conf<0.5 这道闸门拦不住。
+#   开启后：一致 → 照常返回；不一致 → 保留解析但把置信度置 0，
+#   让它自动落进"待人工复核"（复用现有规则，不新造机制）。
+#   代价是推理次数翻倍，7b 到位后若实测稳定可关掉。
+STABILITY_CHECK = False
+STABILITY_ROUNDS = 2                   # 跑几轮（≥2 才有比较意义）
+
 # 队长的模型提供方：
 #   "local"   直连本机 Ollama（默认，当前阶段）
 #   "gateway" 队长部署 7b 后若另起 HTTP 服务，填 AI_GATEWAY_URL 并改这里
@@ -717,22 +726,78 @@ def call_ai(req: AIRequest) -> AIResponse:
     )
 
 
+def call_ai_stable(req: AIRequest, rounds: int = STABILITY_ROUNDS) -> AIResponse:
+    """同题多跑，用"分类是否一致"来判断这次结果能不能信。
+
+    为什么需要这个：真机实测（2026-09-21，0.5b）显示模型会在随机分类上
+    给满把握，所以单看 error_confidence 分不出"真有把握"和"抽错了还自信"。
+    一致性是唯一能观测到的信号——同一个输入它自己都答不到一处，就没有可信度。
+
+    口径（刻意复用现有规则，不新造机制）：
+      一致   → 照常返回，confidence 取多轮的**最小值**（保守）
+      不一致 → 解析（solution）保留，但 error_confidence 置 0 并标
+               stable=false，于是自动落进"待人工复核"、error_type 不入库
+
+    返回体的 code 语义不变；稳定性信息放在 data["stable"] 和 raw 里。
+    """
+    results = [call_ai(req) for _ in range(max(2, rounds))]
+
+    good = [r for r in results if r.code == 0 and isinstance(r.data, dict)]
+    if not good:
+        # 全军覆没：把第一次的错误原样抛回去，不掩盖失败
+        return results[0]
+
+    types = {str(r.data.get("error_type", "")) for r in good}
+    stable = len(types) == 1
+    elapsed = sum(r.elapsed_ms for r in results)
+
+    base = good[0].data
+    if stable:
+        conf = min(float(r.data.get("error_confidence", 0) or 0) for r in good)
+        note = f"{len(good)} 轮分类一致（{types.pop()}），置信度取最小值 {conf}"
+    else:
+        conf = 0.0
+        note = (f"{len(good)} 轮分类不一致（{sorted(types)}），"
+                f"置信度置 0，转人工复核")
+
+    merged = dict(base)
+    merged["error_confidence"] = round(conf, 3)
+    merged["stable"] = stable
+    if not stable:
+        # 分类作废，但别给用户一个看起来像结论的东西
+        merged["error_reason"] = f"[分类未通过稳定性校验] {note}"
+
+    return AIResponse(
+        ok=True, scene=good[0].scene,
+        content=render_content(good[0].scene, merged),
+        raw={"rounds": [{"code": r.code, "data": r.data} for r in results],
+             "stability_note": note},
+        elapsed_ms=elapsed, code=0, data=merged, model=good[0].model,
+        retries=sum(r.retries for r in results),
+    )
+
+
 # ============================================================
 # 便捷封装（业务侧调这些，不用拼 scene）
 # ============================================================
 def analyze_error(question: str, student_answer: str = "",
                   subject: str = DEFAULT_SUBJECT,
                   user_context: Optional[dict] = None,
-                  variant: Optional[str] = None) -> AIResponse:
+                  variant: Optional[str] = None,
+                  stable: Optional[bool] = None) -> AIResponse:
     """错题智能解析（队长协议 scene=error_analysis）。
 
-    variant="v2" 走带 OCR 残缺识别的 Prompt。
+    variant="v2"          走带 OCR 残缺识别的 Prompt
+    stable=True           同题多跑做分类一致性校验（默认取 STABILITY_CHECK）
     """
-    return call_ai(AIRequest(
+    req = AIRequest(
         scene="error_analysis", subject=subject, variant=variant,
         input={"question": question, "student_answer": student_answer},
         user_context=user_context,
-    ))
+    )
+    if stable is None:
+        stable = STABILITY_CHECK
+    return call_ai_stable(req) if stable else call_ai(req)
 
 
 def explain_wrong_question(question: str, student_answer: str) -> AIResponse:
