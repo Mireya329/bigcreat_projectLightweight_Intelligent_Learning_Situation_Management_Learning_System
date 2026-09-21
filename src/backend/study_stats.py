@@ -46,13 +46,26 @@ def collect_stats(cur, uid: int) -> dict:
                       " WHERE user_id=? GROUP BY mastery_level", (uid,))}
 
     # 错误原因分布（供前端饼图）；未分类的题单列，不混进具体类别
-    type_label = {"concept": "概念不清", "calculation": "计算失误",
-                  "misread": "审题偏差", "method": "方法缺失"}
+    # 2026-09-21 起改用队长协议四 code，旧取值保留映射以防脏数据漏网
+    type_label = {
+        "concept_misunderstanding": "概念理解错误",
+        "calculation_error": "计算失误",
+        "misread_question": "审题偏差",
+        "method_gap": "方法缺失",
+        # 历史遗留取值
+        "concept": "概念理解错误", "calculation": "计算失误",
+        "misread": "审题偏差", "method": "方法缺失",
+    }
     by_error_type = {}
     for row in cur.execute(
             "SELECT error_type, COUNT(*) n FROM error_items"
             " WHERE user_id=? GROUP BY error_type", (uid,)):
         by_error_type[type_label.get(row["error_type"], "未分类")] = row["n"]
+
+    # 待人工复核数（置信度 < 0.5，未自动入库的那些）
+    pending_review = cur.execute(
+        "SELECT COUNT(*) FROM error_items"
+        " WHERE user_id=? AND review_flag='pending_review'", (uid,)).fetchone()[0]
 
     due = cur.execute(
         "SELECT COUNT(*) FROM review_schedules r"
@@ -117,7 +130,8 @@ def collect_stats(cur, uid: int) -> dict:
         calc_wrong = cur.execute(
             "SELECT COUNT(*) n FROM error_items e JOIN subjects s"
             " ON e.subject_id=s.id WHERE e.user_id=? AND s.code=?"
-            " AND e.error_type='calculation'", (uid, code)).fetchone()["n"]
+            " AND e.error_type IN ('calculation_error', 'calculation')",
+            (uid, code)).fetchone()["n"]
         radar[code] = {
             # 单词维度目前只有英语类科目有数据，其余给 None
             "vocabulary": (round(perfect / total * 100, 1)
@@ -194,6 +208,7 @@ def collect_stats(cur, uid: int) -> dict:
             "ai_parsed": ai_done,
             "gated": gated,
             "manual": manual,
+            "pending_review": pending_review,   # 置信度<0.5，待人工复核
         },
         "weak_points": weak_points,
         "radar": radar,

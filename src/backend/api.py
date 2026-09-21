@@ -99,6 +99,7 @@ def list_errors(username: str = "test", subject: Optional[str] = None,
     uid = get_user_id(cur, username)
     sql = ("SELECT e.id, e.question_text, e.source, e.mastery_level,"
            " e.ocr_quality, e.ai_model, e.error_type, e.error_type_conf,"
+           " e.error_confidence, e.error_reason, e.review_flag,"
            " s.name AS subject,"
            " s.code AS subject_code"
            " FROM error_items e LEFT JOIN subjects s ON e.subject_id=s.id"

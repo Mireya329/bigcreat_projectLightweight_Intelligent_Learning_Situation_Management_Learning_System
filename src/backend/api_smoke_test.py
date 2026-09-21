@@ -4,12 +4,29 @@
 用法（先启动服务）：
     venv\\Scripts\\python.exe -m uvicorn src.backend.api:app --port 8000
     venv\\Scripts\\python.exe src/backend/api_smoke_test.py
+
+自动清理
+--------
+冒烟测试会真写库（新增错题、上报刷题/计时、复习卡片），跑完如果不清理，
+统计接口的数字就被测试数据污染了——这个问题踩过一次。
+所以脚本在开始前拍快照，结束前把库恢复原样。
 """
 import json
-import urllib.request
+import sys
 import urllib.error
+import urllib.request
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent / "db"))
+from db import get_conn, DB_PATH          # noqa: E402
 
 BASE = "http://127.0.0.1:8000"
+
+# 只增不删的表：跑完删掉 id 大于基线的行
+APPEND_ONLY = ("error_items", "quiz_records", "study_sessions")
+# 会被改写的表：整行快照，跑完原样写回
+ROW_SNAPSHOT = ("anki_cards", "word_records")
 
 
 def call(method, path, body=None):
@@ -38,10 +55,46 @@ def show(title, status, data, keys=None):
         print("   ", json.dumps(data, ensure_ascii=False)[:110])
 
 
+def snapshot():
+    """跑测试前的库快照：只增表的当前最大 id + 会被改写的行原值"""
+    conn = get_conn()
+    cur = conn.cursor()
+    snap = {"max_id": {}, "rows": {}}
+    for t in APPEND_ONLY:
+        snap["max_id"][t] = cur.execute(f"SELECT MAX(id) FROM {t}").fetchone()[0] or 0
+    for t in ROW_SNAPSHOT:
+        snap["rows"][t] = [dict(r) for r in cur.execute(f"SELECT * FROM {t}")]
+    conn.close()
+    return snap
+
+
+def cleanup(snap):
+    """把库恢复成跑测试前的样子"""
+    conn = get_conn()
+    cur = conn.cursor()
+    for t, mid in snap["max_id"].items():
+        n = cur.execute(f"DELETE FROM {t} WHERE id > ?", (mid,)).rowcount
+        if n:
+            print(f"   [清理] {t} 删除 {n} 行测试数据")
+    for t, rows in snap["rows"].items():
+        fixed = 0
+        for r in rows:
+            sets = ", ".join(f"{k}=?" for k in r if k != "id")
+            vals = [r[k] for k in r if k != "id"] + [r["id"]]
+            cur.execute(f"UPDATE {t} SET {sets} WHERE id=?", vals)
+            fixed += cur.rowcount
+        if fixed:
+            print(f"   [清理] {t} 还原 {fixed} 行")
+    conn.commit()
+    conn.close()
+    print(f"   [清理] 完成，数据库已复原：{DB_PATH}")
+
+
 def main():
     print("=" * 58)
     print("API 冒烟测试")
     print("=" * 58)
+    snap = snapshot()
 
     s, d = call("GET", "/health")
     show("健康检查", s, d, ["status", "ollama_online", "model"])
@@ -96,6 +149,9 @@ def main():
         print(f"{'✅' if s == 400 else '❌'} 非法 quality=9 应返回 400  HTTP {s}")
 
     print("\n全部接口测试完成")
+
+    print("\n--- 清理测试数据 ---")
+    cleanup(snap)
 
 
 if __name__ == "__main__":

@@ -62,7 +62,15 @@ CREATE TABLE IF NOT EXISTS error_items (
   wrong_answer_text  TEXT,                     -- 学生错答
   mistake_analysis   TEXT,                     -- 错因分析
   mistake_status     TEXT,                     -- not_attempted/wrong_attempt/unknown
-  error_type         TEXT,                     -- Calculation/Concept/Misread/MethodMissing
+  error_type         TEXT,                     -- 队长协议四 code（2026-09-21 冻结）：
+                                               --   concept_misunderstanding 概念理解错误
+                                               --   calculation_error       计算失误
+                                               --   misread_question        审题偏差
+                                               --   method_gap              方法缺失
+  error_confidence   REAL,                     -- 分类置信度 0~1；<0.5 打待复核、不自动入库
+  error_reason       TEXT,                     -- 一句话判定依据（队长要求字段 error_reason）
+  review_flag        TEXT,                     -- 'pending_review'=待人工复核；NULL=已自动入库
+  error_type_conf    TEXT,                     -- 分级 high/low/template/pending_review（旧字段，保留）
   source             TEXT,                     -- 来源，如"期中考试"
   user_notes         TEXT,
   mastery_level      INTEGER NOT NULL DEFAULT 0,  -- 0未掌握 1复习中 2已掌握
