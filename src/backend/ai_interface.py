@@ -85,6 +85,10 @@ CONFIDENCE_THRESHOLD = 0.5
 STABILITY_CHECK = False
 STABILITY_ROUNDS = 2                   # 跑几轮（≥2 才有比较意义）
 
+# 考研院校库是否已接入（4 号提供）。False 时 school_recommend 直接返回空，
+# 不让模型编校名——实测 0.5b 会把输入里的"某二本"抄成推荐院校。
+SCHOOL_DB_READY = False
+
 # 队长的模型提供方：
 #   "local"   直连本机 Ollama（默认，当前阶段）
 #   "gateway" 队长部署 7b 后若另起 HTTP 服务，填 AI_GATEWAY_URL 并改这里
@@ -747,25 +751,39 @@ def call_ai_stable(req: AIRequest, rounds: int = STABILITY_ROUNDS) -> AIResponse
         # 全军覆没：把第一次的错误原样抛回去，不掩盖失败
         return results[0]
 
-    types = {str(r.data.get("error_type", "")) for r in good}
+    scene = good[0].scene
+    # 不同场景拿来比对的字段不同
+    key_field = "choice" if scene == "judge_fragment" else "error_type"
+    types = {str(r.data.get(key_field, "")) for r in good}
     stable = len(types) == 1
     elapsed = sum(r.elapsed_ms for r in results)
 
     base = good[0].data
-    if stable:
-        conf = min(float(r.data.get("error_confidence", 0) or 0) for r in good)
-        note = f"{len(good)} 轮分类一致（{types.pop()}），置信度取最小值 {conf}"
-    else:
-        conf = 0.0
-        note = (f"{len(good)} 轮分类不一致（{sorted(types)}），"
-                f"置信度置 0，转人工复核")
-
     merged = dict(base)
-    merged["error_confidence"] = round(conf, 3)
     merged["stable"] = stable
-    if not stable:
-        # 分类作废，但别给用户一个看起来像结论的东西
-        merged["error_reason"] = f"[分类未通过稳定性校验] {note}"
+
+    if scene == "judge_fragment":
+        # 碎片归属判错会往库里补一道不存在的题，比不补更糟。
+        # 所以不稳定时强制判 C（无法判断）→ ocr_recover 视为 unknown → 不入库。
+        if stable:
+            note = f"{len(good)} 轮判定一致（{types.pop()}）"
+        else:
+            merged["choice"] = "C"
+            merged["reason"] = f"[判定未通过稳定性校验] {sorted(types)}，按无法判断处理"
+            note = f"{len(good)} 轮判定不一致（{sorted(types)}），强制判 C"
+    else:
+        if stable:
+            conf = min(float(r.data.get("error_confidence", 0) or 0)
+                       for r in good)
+            note = f"{len(good)} 轮分类一致（{types.pop()}），置信度取最小值 {conf}"
+        else:
+            conf = 0.0
+            note = (f"{len(good)} 轮分类不一致（{sorted(types)}），"
+                    f"置信度置 0，转人工复核")
+        merged["error_confidence"] = round(conf, 3)
+        if not stable:
+            # 分类作废，但别给用户一个看起来像结论的东西
+            merged["error_reason"] = f"[分类未通过稳定性校验] {note}"
 
     return AIResponse(
         ok=True, scene=good[0].scene,
@@ -818,18 +836,68 @@ def knowledge_qa(question: str, subject: str = DEFAULT_SUBJECT,
                              user_context=user_context))
 
 
+def render_stats_text(stats: Any) -> str:
+    """把学情统计写成一句句人话，再喂给模型。
+
+    为什么要转：真机实测（2026-09-21）发现直接喂 JSON，模型会把 **字段名**
+    当成薄弱点输出——`{"单词正确率": 0.72}` 让它报 `weak_points: ["单词正确率"]`，
+    还有 "未分类" 这种根本不是知识点的桶名。喂自然语言后输出的是
+    "单词练习错误率高、错题分布较多"，这才叫诊断。
+    """
+    if isinstance(stats, str):
+        return stats
+    if not isinstance(stats, dict):
+        return str(stats)
+
+    parts = []
+    for k, v in stats.items():
+        if v is None or v == "" or v == [] or v == {}:
+            continue                       # 空值别进 prompt，否则模型会输出"xxx：None"
+        if isinstance(v, dict):
+            inner = "、".join(f"{k2}{v2}" for k2, v2 in v.items()
+                              if v2 is not None and v2 != "")
+            if not inner:
+                continue
+            parts.append(f"{k}：{inner}")
+        elif isinstance(v, list):
+            parts.append(f"{k}：{'、'.join(str(x) for x in v)}")
+        else:
+            parts.append(f"{k}：{v}")
+    return "；".join(parts) + "。" if parts else "暂无学习数据。"
+
+
 def diagnose_weakness(stats: dict, subject: str = DEFAULT_SUBJECT,
                       user_context: Optional[dict] = None) -> AIResponse:
-    """学习薄弱点诊断（队长协议 scene=weak_diagnosis）"""
+    """学习薄弱点诊断（队长协议 scene=weak_diagnosis）。
+
+    stats 可以传 dict（会转成自然语言再喂模型）或直接传 str。
+    """
     return call_ai(AIRequest(
         scene="weak_diagnosis", subject=subject,
-        input={"stats_json": json.dumps(stats, ensure_ascii=False)},
+        input={"stats_json": render_stats_text(stats)},
         user_context=user_context))
 
 
 def school_recommend(profile: dict, subject: str = DEFAULT_SUBJECT,
                      user_context: Optional[dict] = None) -> AIResponse:
-    """择校冲稳保推荐（v1 占位，等 4 号院校表）"""
+    """择校冲稳保推荐。
+
+    ⚠️ 院校库没接进来之前**不调模型**，直接返回空结果。
+    真机实测（2026-09-21）：明知没有院校库，0.5b 仍会把输入里的
+    "本科：某二本" 抄成推荐校名填进 reach/match/safety。
+    让用户照着编出来的校名报志愿是要出事的，所以宁可空着。
+    """
+    if not SCHOOL_DB_READY:
+        return AIResponse(
+            ok=True, scene="school_recommend",
+            content="【择校推荐】院校库尚未接入，暂不提供推荐。",
+            raw={"skipped": True, "reason": "院校库未接入"},
+            elapsed_ms=0, code=0,
+            data={"reach": [], "match": [], "safety": [],
+                  "note": "院校库尚未接入（等 4 号提供考研院校表），"
+                          "为避免模型编造校名，此处不给出任何院校。"},
+            model="none",
+        )
     return call_ai(AIRequest(
         scene="school_recommend", subject=subject,
         input={"profile": json.dumps(profile, ensure_ascii=False)},
@@ -979,6 +1047,27 @@ def _selftest(live: bool = False) -> int:
     upper = normalize_error_analysis({"error_type": "CALCULATION_ERROR"})
     assert upper["error_type"] == "calculation_error", "code 应归一小写"
     print("  ✓ 大小写变体归一：CALCULATION_ERROR → calculation_error")
+
+    print("\n[10] 学情转人话：别让字段名变成模型的'薄弱点'")
+    # 真机实测：直接喂 JSON，模型会输出 weak_points: ["单词正确率", "未分类10"]
+    txt = render_stats_text(
+        {"错题数": 11, "未分类": None, "待复习": 11,
+         "错误类型分布": {"未分类": 10, "计算失误": 1}})
+    print(f"  {txt}")
+    assert "None" not in txt, f"空值漏进了 prompt: {txt}"
+    assert "错题数：11" in txt and "待复习：11" in txt
+    assert "未分类：" not in txt, f"None 项应被跳过: {txt}"
+    assert render_stats_text({}) == "暂无学习数据。"
+    assert render_stats_text("原样字符串") == "原样字符串"
+    print("  ✓ 空值已过滤；空字典给兜底文案；字符串原样返回")
+
+    print("\n[11] 择校未接院校库 → 不调模型，直接返回空")
+    r = school_recommend({"本科": "某二本", "目标分": 340})
+    assert r.code == 0 and r.data is not None
+    assert r.data["reach"] == [] and r.data["match"] == [] \
+        and r.data["safety"] == [], f"不该有校名: {r.data}"
+    assert r.model == "none", "院校库没接入时不应调用模型"
+    print(f"  ✓ 返回空三档，model={r.model}（实测 0.5b 会把「某二本」抄成推荐院校）")
 
     # --- 2. 真机自测 ---
     if live:

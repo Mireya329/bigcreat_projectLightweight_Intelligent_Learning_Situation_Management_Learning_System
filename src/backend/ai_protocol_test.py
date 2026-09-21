@@ -167,8 +167,33 @@ def main():
     check("code == 0", r.code == 0, f"实际 {r.code}")
     check("用上了成功那轮的结果", r.data is not None)
 
-    # ---- 11. 旧名兼容 ----
-    print("\n[11] 旧调用方兼容（ok / content / elapsed_ms）")
+    # ---- 11. judge_fragment 不稳定 → 强制判 C ----
+    print("\n[11] judge_fragment 两轮判定不一致 → 强制 C（不补录）")
+    def frag(ch):
+        return ('{"choice": "%s", "guessed_no": "1", "stem": "s",'
+                ' "qtype": "计算", "reason": "r"}' % ch)
+    s = stub(frag("B"), frag("A"))
+    r = ai.call_ai_stable(ai.AIRequest(
+        scene="judge_fragment",
+        input={"fragment": "x", "prev": "p", "next": "n"}))
+    check("choice 被强制为 C", r.data.get("choice") == "C",
+          f"实际 {r.data.get('choice')}")
+    check("stable 为 False", r.data.get("stable") is False)
+    check("写明原因", "稳定性校验" in str(r.data.get("reason", "")))
+    check("渲染文本以 C 开头（ocr_recover 的正则认得出）",
+          r.content.strip().startswith("C"), repr(r.content[:20]))
+
+    # ---- 12. judge_fragment 一致 → 照常 ----
+    print("\n[12] judge_fragment 两轮一致 → 照常返回")
+    s = stub(frag("B"), frag("B"))
+    r = ai.call_ai_stable(ai.AIRequest(
+        scene="judge_fragment",
+        input={"fragment": "x", "prev": "p", "next": "n"}))
+    check("choice 保持 B", r.data.get("choice") == "B")
+    check("stable 为 True", r.data.get("stable") is True)
+
+    # ---- 13. 旧名兼容 ----
+    print("\n[13] 旧调用方兼容（ok / content / elapsed_ms）")
     s = stub(GOOD)
     r = ai.explain_wrong_question("求导数", "7")     # 旧函数
     check("旧函数仍可用", r.ok is True and r.content and r.elapsed_ms >= 0)

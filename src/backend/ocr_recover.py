@@ -50,6 +50,16 @@ def main():
         print("没有漏题，切分召回率 100%")
         return
 
+    # 实测警告（2026-09-21，0.5b）：judge_fragment 判定基本是随机的，
+    # 3 个用例各跑 3 次，3/3 都不一致。AI 判 B 会真的写进 error_items，
+    # 判定不可靠时补录等于往库里灌不存在的题。
+    if apply_mode and not ai_interface.STABILITY_CHECK:
+        print("⚠️  警告：judge_fragment 在当前模型上判定不稳定")
+        print("   （实测 3 个用例 × 3 次，3/3 结果不一致）")
+        print("   AI 判为 B 的会被写进 error_items，可能补出不存在的题。")
+        print("   建议先在 ai_interface 里把 STABILITY_CHECK 置 True 再 --apply，")
+        print("   或等 7b 到位后重跑。\n")
+
     results = []
     for gi, gq in missed:
         seg = raw[gq["start_line"] - 1: gq["end_line"]]
