@@ -156,8 +156,8 @@
                 </div>
 
                 <!-- 错题列表 -->
-                <div class="card" style="padding: 0; overflow: hidden;">
-                    <!-- 错题1 -->
+                <div class="card" style="padding: 0; overflow: hidden;" id="mistakeList">
+                    <!-- JS动态渲染 -->
                     <div style="padding: 20px 24px; border-bottom: 1px solid var(--color-border);">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                             <div style="display: flex; gap: 8px; align-items: center;">
@@ -304,6 +304,72 @@
         </div>
     </div>
 <script>
+const API = 'http://127.0.0.1:8000';
+
+// 页面加载时从后端拉数据
+async function loadData() {
+    try {
+        // 拉统计数据
+        const statsRes = await fetch(API + '/stats?username=test');
+        const stats = await statsRes.json();
+        document.getElementById('totalMistakes').innerText = stats.summary.total_errors;
+        document.getElementById('masteredCount').innerText = stats.summary.mastered_errors;
+        const total = stats.summary.total_errors || 1;
+        document.getElementById('masteryRate').innerText = '掌握率 ' + Math.round(stats.summary.mastered_errors / total * 100) + '%';
+
+        // 拉错题列表
+        const errRes = await fetch(API + '/errors?username=test');
+        const errData = await errRes.json();
+        renderMistakes(errData.items);
+    } catch(e) {
+        console.log('后端未启动，显示离线数据', e);
+    }
+}
+
+// 渲染错题卡片
+function renderMistakes(items) {
+    const container = document.getElementById('mistakeList');
+    container.innerHTML = '';
+    items.forEach(function(item, idx) {
+        const errorTypeMap = {
+            'concept_misunderstanding': '概念不清',
+            'calculation_error': '计算失误',
+            'misread_question': '审题偏差',
+            'method_gap': '方法缺失'
+        };
+        const errLabel = item.error_type ? errorTypeMap[item.error_type] || item.error_type : '未分类';
+        const masteryText = item.mastery_level === 2 ? '已掌握' : '标记已掌握';
+        const masteryClass = item.mastery_level === 2 ? 'btn-success' : 'btn-ghost';
+
+        const div = document.createElement('div');
+        div.style.cssText = 'padding: 20px 24px; border-bottom: 1px solid var(--color-border);';
+        div.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <span class="tag tag-primary">${item.subject || ''}</span>
+                    <span class="tag tag-default">选择题</span>
+                    <span class="tag tag-danger">${errLabel}</span>
+                </div>
+                <span style="font-size: 12px; color: var(--color-text-caption);">${item.created_at || ''}</span>
+            </div>
+            <div style="font-size: 15px; font-weight: 500; color: var(--color-text-title); margin-bottom: 12px; line-height: 1.6;">
+                ${idx+1}. ${item.question_text || ''}
+            </div>
+            ${item.analysis ? `<div style="padding: 12px 14px; background: var(--color-bg-card); border-radius: 6px; margin-top: 8px; font-size: 14px; color: var(--color-text-secondary);">
+                <strong>解析：</strong>${item.analysis}
+            </div>` : ''}
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+                <button class="btn btn-ghost btn-sm ${masteryClass}" data-done="${item.mastery_level === 2 ? '1' : ''}">${masteryText}</button>
+                <button class="btn btn-primary btn-sm">立即复习</button>
+            </div>
+        `;
+        container.appendChild(div);
+    });
+}
+
+// 页面加载完就拉数据
+loadData();
+
 // 获取筛选下拉框和按钮
 const subjectFilter = document.getElementById('subjectFilter');
 const typeFilter = document.getElementById('typeFilter');
@@ -340,55 +406,44 @@ exportBtn.addEventListener('click', function() {
     console.log('导出错题');
 });
 
-// 掌握度按钮：两态切换（未掌握 ↔ 已掌握）
-document.querySelectorAll('.btn-ghost').forEach(function(btn) {
+// 事件委托：掌握度按钮（动态生成的也能点）
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.btn-ghost, .btn-success');
+    if (!btn) return;
+    if (btn.innerText !== '标记已掌握' && btn.innerText !== '已掌握') return;
+
+    const total = parseInt(document.getElementById('totalMistakes').innerText) || 1;
+    let mastered = parseInt(document.getElementById('masteredCount').innerText) || 0;
+
     if (btn.innerText === '标记已掌握') {
-        btn.addEventListener('click', function() {
-            const total = parseInt(document.getElementById('totalMistakes').innerText);
-            let mastered = parseInt(document.getElementById('masteredCount').innerText);
-
-            if (this.dataset.done !== '1') {
-                // 未掌握 → 已掌握（绿色）
-                this.dataset.done = '1';
-                this.innerText = '已掌握';
-                this.classList.remove('btn-ghost');
-                this.classList.add('btn-success');
-                mastered++;
-            } else {
-                // 已掌握 → 未掌握（灰色，恢复）
-                this.dataset.done = '';
-                this.innerText = '标记已掌握';
-                this.classList.remove('btn-success');
-                this.classList.add('btn-ghost');
-                mastered--;
-            }
-
-            document.getElementById('masteredCount').innerText = mastered;
-            const rate = Math.round(mastered / total * 100);
-            document.getElementById('masteryRate').innerText = '掌握率 ' + rate + '%';
-        });
+        btn.innerText = '已掌握';
+        btn.classList.remove('btn-ghost');
+        btn.classList.add('btn-success');
+        mastered++;
+    } else {
+        btn.innerText = '标记已掌握';
+        btn.classList.remove('btn-success');
+        btn.classList.add('btn-ghost');
+        mastered--;
     }
+    document.getElementById('masteredCount').innerText = mastered;
+    document.getElementById('masteryRate').innerText = '掌握率 ' + Math.round(mastered / total * 100) + '%';
 });
 
-// 所有"立即复习"按钮：点过一次后变灰，再点不重复减
-document.querySelectorAll('.btn-primary').forEach(function(btn) {
-    if (btn.innerText === '立即复习') {
-        btn.addEventListener('click', function() {
-            // 已经复习过的不再重复减
-            if (this.dataset.reviewed === '1') return;
-            this.dataset.reviewed = '1';
+// 事件委托：立即复习按钮
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.btn-primary');
+    if (!btn || btn.innerText !== '立即复习') return;
+    if (btn.dataset.reviewed === '1') return;
+    btn.dataset.reviewed = '1';
 
-            // 更新待复习数
-            let review = parseInt(document.getElementById('reviewCount').innerText);
-            if (review > 0) review--;
-            document.getElementById('reviewCount').innerText = review;
+    let review = parseInt(document.getElementById('reviewCount').innerText) || 0;
+    if (review > 0) review--;
+    document.getElementById('reviewCount').innerText = review;
 
-            // 按钮变灰、文字改"已复习"
-            this.innerText = '已复习';
-            this.classList.remove('btn-primary');
-            this.classList.add('btn-default');
-        });
-    }
+    btn.innerText = '已复习';
+    btn.classList.remove('btn-primary');
+    btn.classList.add('btn-default');
 });
 
 // 所有"查看类似题"按钮

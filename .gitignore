@@ -7,3 +7,7 @@ build/
 .DS_Store
 .vscode/
 .idea/
+frontend_ui/docs/对接确认表.md
+data/learning.db
+frontend_ui/docs/通知3号_错误分类字段变更.md
+frontend_ui/docs/后端字段字典.md

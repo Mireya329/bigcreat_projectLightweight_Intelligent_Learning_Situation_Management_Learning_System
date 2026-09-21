@@ -351,198 +351,188 @@
         </div>
     </div>
 <script>
-// 全局图表配置
+const API = 'http://127.0.0.1:8000';
 const colors = ['#3182ce', '#38A169', '#D69E2E', '#E53E3E', '#805AD5'];
-const commonOption = {
-    legend: { top: 0, left: 'center', icon: 'roundRect', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12, color: '#4A5568' } },
-    textStyle: { fontFamily: 'Microsoft YaHei, sans-serif', fontSize: 12 },
-    tooltip: { trigger: 'axis', backgroundColor: 'rgba(255,255,255,0.95)', borderColor: '#e0e0e0', borderRadius: 8, padding: 10 },
-    grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true }
-};
 
-// 1. 分科刷题正确率趋势（折线图）
+// 初始化图表
 const trendChart = echarts.init(document.getElementById('trendChart'));
-trendChart.setOption({
-    ...commonOption,
-    legend: { data: ['考研政治', '考研数学', '考研英语', '英语四级', '英语六级'] },
-    xAxis: { type: 'category', data: ['9/8', '9/9', '9/10', '9/11', '9/12', '9/13', '9/14'] },
-    yAxis: { type: 'value', min: 60, max: 100, axisLabel: { formatter: '{value}%' } },
-    series: [
-        { name: '考研政治', type: 'line', smooth: true, data: [75, 78, 82, 80, 85, 83, 86] },
-        { name: '考研数学', type: 'line', smooth: true, data: [65, 68, 70, 72, 71, 73, 75] },
-        { name: '考研英语', type: 'line', smooth: true, data: [80, 82, 85, 84, 86, 88, 87] },
-        { name: '英语四级', type: 'line', smooth: true, data: [68, 70, 72, 71, 73, 75, 74] },
-        { name: '英语六级', type: 'line', smooth: true, data: [70, 72, 74, 73, 75, 76, 78] }
-    ],
-    color: colors
-});
-
-// 2. 错题类型分布（饼图）
 const pieChart = echarts.init(document.getElementById('pieChart'));
-pieChart.setOption({
-    ...commonOption,
-    tooltip: { trigger: 'item', formatter: '{b}: {c}题 ({d}%)' },
-    legend: { top: '5%', left: 'center' },
-    series: [{
-        type: 'pie',
-        radius: ['40%', '70%'],
-        center: ['50%', '45%'],
-        avoidLabelOverlap: false,
-        itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 2 },
-        label: { show: false },
-        emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold' } },
-        data: [
-            { value: 156, name: '概念不清', itemStyle: { color: '#4A90E2' } },
-            { value: 98, name: '计算失误', itemStyle: { color: '#50E3C2' } },
-            { value: 76, name: '审题错误', itemStyle: { color: '#F5A623' } },
-            { value: 52, name: '知识遗忘', itemStyle: { color: '#D0021B' } },
-            { value: 38, name: '其他', itemStyle: { color: '#9013FE' } }
-        ]
-    }]
-});
-
-// 3. 学情能力雷达图
 const radarChart = echarts.init(document.getElementById('radarChart'));
-radarChart.setOption({
-    ...commonOption,
-    tooltip: {},
-    radar: {
-        indicator: [
-            { name: '词汇', max: 100 },
-            { name: '选择', max: 100 },
-            { name: '大题', max: 100 },
-            { name: '背诵', max: 100 },
-            { name: '计算', max: 100 },
-            { name: '写作', max: 100 }
-        ],
-        radius: '65%',
-        axisName: { color: '#666', fontSize: 12 }
-    },
-    series: [{
-        type: 'radar',
-        data: [
-            {
-                value: [85, 78, 65, 82, 70, 75],
-                name: '当前水平',
-                areaStyle: { opacity: 0.3 },
-                lineStyle: { color: '#4A90E2', width: 2 },
-                itemStyle: { color: '#4A90E2' }
-            },
-            {
-                value: [90, 85, 80, 88, 82, 85],
-                name: '目标水平',
-                areaStyle: { opacity: 0.1 },
-                lineStyle: { color: '#50E3C2', width: 2, type: 'dashed' },
-                itemStyle: { color: '#50E3C2' }
-            }
-        ]
-    }]
-});
-
-// 4. 每日备考时长统计（堆叠柱状图）
 const timeChart = echarts.init(document.getElementById('timeChart'));
-timeChart.setOption({
-    ...commonOption,
-    legend: { data: ['考研政治', '考研数学', '考研英语', '其他'] },
-    xAxis: { type: 'category', data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'] },
-    yAxis: { type: 'value', axisLabel: { formatter: '{value}h' } },
-    series: [
-        { name: '考研政治', type: 'bar', stack: 'total', data: [1.5, 2, 1.5, 2, 2.5, 3, 2], itemStyle: { color: '#4A90E2' } },
-        { name: '考研数学', type: 'bar', stack: 'total', data: [2, 1.5, 2.5, 2, 1.5, 3, 2.5], itemStyle: { color: '#50E3C2' } },
-        { name: '考研英语', type: 'bar', stack: 'total', data: [1, 1.5, 1, 1.5, 2, 2, 1.5], itemStyle: { color: '#F5A623' } },
-        { name: '其他', type: 'bar', stack: 'total', data: [0.5, 0.5, 1, 0.5, 1, 1.5, 1], itemStyle: { color: '#9013FE' } }
-    ]
-});
-
-// 5. 薄弱考点TOP10（横向条形图）
 const weaknessChart = echarts.init(document.getElementById('weaknessChart'));
-weaknessChart.setOption({
-    ...commonOption,
-    grid: { left: '3%', right: '8%', bottom: '3%', containLabel: true },
-    xAxis: { type: 'value', axisLabel: { formatter: '{value}题' } },
-    yAxis: {
-        type: 'category',
-        data: ['马认识论', '极限计算', '长难句分析', '唯物辩证法', '积分应用', '虚拟语气', '毛中特概论', '级数收敛', '阅读理解', '时态语态'].reverse()
-    },
-    series: [{
-        type: 'bar',
-        data: [12, 15, 18, 20, 22, 25, 28, 32, 35, 42].reverse(),
-        itemStyle: {
-            color: function(params) {
-                const colors = ['#D0021B', '#D0021B', '#F5A623', '#F5A623', '#F5A623', '#4A90E2', '#4A90E2', '#4A90E2', '#4A90E2', '#4A90E2'];
-                return colors[params.dataIndex];
-            },
-            borderRadius: [0, 4, 4, 0]
-        },
-        barWidth: 20,
-        label: { show: true, position: 'right', formatter: '{c}题' }
-    }]
-});
-
-// 6. 分科学习对比（柱状图）
 const compareChart = echarts.init(document.getElementById('compareChart'));
-compareChart.setOption({
-    ...commonOption,
-    legend: { data: ['刷题量(题)', '正确率(%)', '学习时长(h)'] },
-    xAxis: { type: 'category', data: ['考研政治', '考研数学', '考研英语', '英语四级', '英语六级'] },
-    yAxis: [
-        { type: 'value', name: '刷题量/时长' },
-        { type: 'value', name: '正确率', min: 0, max: 100, axisLabel: { formatter: '{value}%' } }
-    ],
-    series: [
-        { name: '刷题量(题)', type: 'bar', data: [656, 423, 486, 156, 135], itemStyle: { color: '#4A90E2' } },
-        { name: '学习时长(h)', type: 'bar', data: [28.5, 35.2, 22.8, 12.5, 10.2], itemStyle: { color: '#50E3C2' } },
-        { name: '正确率(%)', type: 'line', yAxisIndex: 1, data: [82.5, 71.2, 85.6, 68.3, 72.1], itemStyle: { color: '#F5A623' }, lineStyle: { width: 3 } }
-    ]
-});
 
-// 获取筛选下拉框和按钮
-const subjectFilter = document.getElementById('subjectFilter');
-const timeFilter = document.getElementById('timeFilter');
-const exportBtn = document.getElementById('exportBtn');
-const refreshBtn = document.getElementById('refreshBtn');
+// 空数据占位
+function emptyChart(name) {
+    return {
+        title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: '#a0aec0', fontSize: 14, fontWeight: 'normal' } }
+    };
+}
 
-// 刷新数据按钮点击事件（静默刷新）
-refreshBtn.addEventListener('click', function() {
-    trendChart.setOption({
-        series: [
-            { name: '考研政治', data: [80 + Math.random()*5, 82 + Math.random()*5, 85 + Math.random()*5, 83 + Math.random()*5, 86 + Math.random()*5, 84 + Math.random()*5, 87 + Math.random()*5] },
-            { name: '考研数学', data: [68 + Math.random()*5, 70 + Math.random()*5, 72 + Math.random()*5, 74 + Math.random()*5, 73 + Math.random()*5, 75 + Math.random()*5, 76 + Math.random()*5] }
-        ]
-    });
-});
+// 页面加载时拉数据
+async function loadStats() {
+    try {
+        const res = await fetch(API + '/stats?username=test');
+        const s = await res.json();
 
-// 导出报表按钮点击事件（静默）
-exportBtn.addEventListener('click', function() {
-});
+        // 顶部4个统计卡片
+        document.querySelectorAll('.card')[0].querySelectorAll('div')[1].innerText = (s.summary.total_study_hours || 0).toFixed(1);
+        document.querySelectorAll('.card')[1].querySelectorAll('div')[1].innerText = (s.summary.total_practice_count || 0).toLocaleString();
+        document.querySelectorAll('.card')[2].querySelectorAll('div')[1].innerText = (s.summary.accuracy || 0).toFixed(1) + '%';
+        document.querySelectorAll('.card')[3].querySelectorAll('div')[1].innerText = s.summary.mastered_errors || 0;
 
-// 科目筛选下拉框切换事件
-subjectFilter.addEventListener('change', function() {
-    const selectedSubject = this.value;
-    
-    if (selectedSubject === '全部科目') {
-        trendChart.setOption({
-            series: [
-                { name: '考研政治', type: 'line', smooth: true, data: [75, 78, 82, 80, 85, 83, 86] },
-                { name: '考研数学', type: 'line', smooth: true, data: [65, 68, 70, 72, 71, 73, 75] },
-                { name: '考研英语', type: 'line', smooth: true, data: [80, 82, 85, 84, 86, 88, 87] },
-                { name: '英语四级', type: 'line', smooth: true, data: [68, 70, 72, 71, 73, 75, 74] },
-                { name: '英语六级', type: 'line', smooth: true, data: [70, 72, 74, 73, 75, 76, 78] }
-            ]
-        });
-    } else {
-        trendChart.setOption({
-            series: [
-                { name: '考研政治', type: 'line', smooth: true, data: selectedSubject === '考研政治' ? [75, 78, 82, 80, 85, 83, 86] : [] },
-                { name: '考研数学', type: 'line', smooth: true, data: selectedSubject === '考研数学' ? [65, 68, 70, 72, 71, 73, 75] : [] },
-                { name: '考研英语', type: 'line', smooth: true, data: selectedSubject === '考研英语' ? [80, 82, 85, 84, 86, 88, 87] : [] },
-                { name: '英语四级', type: 'line', smooth: true, data: selectedSubject === '英语四级' ? [68, 70, 72, 71, 73, 75, 74] : [] },
-                { name: '英语六级', type: 'line', smooth: true, data: selectedSubject === '英语六级' ? [70, 72, 74, 73, 75, 76, 78] : [] }
-            ]
-        });
+        // 1. 正确率趋势折线图
+        if (s.trend && s.trend.length > 0) {
+            const dates = [...new Set(s.trend.map(t => t.date))];
+            const subjects = [...new Set(s.trend.map(t => t.subject))];
+            const subjNames = { 'POSTGRAD_POLITICS': '考研政治', 'POSTGRAD_MATH': '考研数学', 'POSTGRAD_ENGLISH': '考研英语', 'CET4': '四级', 'CET6': '六级' };
+            trendChart.setOption({
+                tooltip: { trigger: 'axis' },
+                legend: { top: 0, left: 'center' },
+                xAxis: { type: 'category', data: dates },
+                yAxis: { type: 'value', min: 60, max: 100, axisLabel: { formatter: '{value}%' } },
+                series: subjects.map((subj, i) => ({
+                    name: subjNames[subj] || subj,
+                    type: 'line',
+                    smooth: true,
+                    data: dates.map(d => {
+                        const row = s.trend.find(t => t.date === d && t.subject === subj);
+                        return row ? row.rate : null;
+                    })
+                }))
+            });
+        } else {
+            trendChart.setOption(emptyChart('趋势'));
+        }
+
+        // 2. 错题类型饼图
+        if (s.error && s.error.by_error_type) {
+            const pieData = Object.entries(s.error.by_error_type).map(([name, value]) => ({ name, value }));
+            pieChart.setOption({
+                tooltip: { trigger: 'item', formatter: '{b}: {c}题 ({d}%)' },
+                legend: { top: '5%', left: 'center' },
+                series: [{
+                    type: 'pie',
+                    radius: ['40%', '70%'],
+                    center: ['50%', '50%'],
+                    itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 2 },
+                    label: { show: false },
+                    data: pieData
+                }]
+            });
+        } else {
+            pieChart.setOption(emptyChart('饼图'));
+        }
+
+        // 3. 雷达图（4维：词汇/选择/大题/计算，删掉背诵和写作）
+        if (s.radar && Object.keys(s.radar).length > 0) {
+            const subj = s.radar[Object.keys(s.radar)[0]] || {};
+            const value = [subj.vocabulary || 0, subj.choice || 0, subj.essay || 0, subj.calculate || 0];
+            radarChart.setOption({
+                tooltip: {},
+                radar: {
+                    indicator: [
+                        { name: '词汇', max: 100 },
+                        { name: '选择', max: 100 },
+                        { name: '大题', max: 100 },
+                        { name: '计算', max: 100 }
+                    ],
+                    radius: '65%',
+                    axisName: { color: '#666', fontSize: 12 }
+                },
+                series: [{
+                    type: 'radar',
+                    data: [{
+                        value: value,
+                        name: '当前水平',
+                        areaStyle: { opacity: 0.3 },
+                        lineStyle: { color: '#3182ce', width: 2 },
+                        itemStyle: { color: '#3182ce' }
+                    }]
+                }]
+            });
+        } else {
+            radarChart.setOption(emptyChart('雷达'));
+        }
+
+        // 4. 备考时长堆叠柱状图（动态读取所有科目）
+        if (s.duration && s.duration.length > 0) {
+            const dates = s.duration.map(d => d.date);
+            const subjNames = { 'POSTGRAD_POLITICS': '考研政治', 'POSTGRAD_MATH': '考研数学', 'POSTGRAD_ENGLISH': '考研英语', 'CET4': '四级', 'CET6': '六级', 'other': '其他' };
+            // 收集所有出现过的科目key
+            const subjKeys = new Set();
+            s.duration.forEach(d => Object.keys(d).forEach(k => { if (k !== 'date') subjKeys.add(k); }));
+            const keyList = [...subjKeys];
+            timeChart.setOption({
+                tooltip: { trigger: 'axis' },
+                legend: { top: 0, left: 'center', data: keyList.map(k => subjNames[k] || k) },
+                xAxis: { type: 'category', data: dates },
+                yAxis: { type: 'value', axisLabel: { formatter: '{value}h' } },
+                series: keyList.map(k => ({
+                    name: subjNames[k] || k,
+                    type: 'bar',
+                    stack: 'total',
+                    data: s.duration.map(d => d[k] || 0)
+                }))
+            });
+        } else {
+            timeChart.setOption(emptyChart('时长'));
+        }
+
+        // 5. 薄弱考点TOP10横向条形图
+        if (s.weak_points && s.weak_points.length > 0) {
+            const sorted = [...s.weak_points].sort((a, b) => a.count - b.count);
+            weaknessChart.setOption({
+                grid: { left: '3%', right: '8%', bottom: '3%', containLabel: true },
+                xAxis: { type: 'value', axisLabel: { formatter: '{value}题' } },
+                yAxis: { type: 'category', data: sorted.map(w => w.point) },
+                series: [{
+                    type: 'bar',
+                    data: sorted.map(w => w.count),
+                    itemStyle: { color: '#e53e3e', borderRadius: [0, 4, 4, 0] },
+                    barWidth: 20,
+                    label: { show: true, position: 'right', formatter: '{c}题' }
+                }]
+            });
+        } else {
+            weaknessChart.setOption(emptyChart('薄弱考点'));
+        }
+
+        // 6. 分科学习对比（用by_subject数据）
+        if (s.error && s.error.by_subject) {
+            const subjData = s.error.by_subject;
+            const subjNames = { 'POSTGRAD_POLITICS': '考研政治', 'POSTGRAD_MATH': '考研数学', 'POSTGRAD_ENGLISH': '考研英语', 'CET4': '四级', 'CET6': '六级' };
+            const subjects = Object.keys(subjData);
+            compareChart.setOption({
+                tooltip: { trigger: 'axis' },
+                legend: { top: 0, left: 'center' },
+                xAxis: { type: 'category', data: subjects.map(s => subjNames[s] || s) },
+                yAxis: { type: 'value' },
+                series: [{
+                    name: '错题数',
+                    type: 'bar',
+                    data: subjects.map(s => subjData[s]),
+                    itemStyle: { color: '#3182ce', borderRadius: [4, 4, 0, 0] }
+                }]
+            });
+        } else {
+            compareChart.setOption(emptyChart('对比'));
+        }
+
+    } catch(e) {
+        console.log('后端未启动', e);
     }
-});
-// 窗口大小变化时自适应
+}
+
+loadStats();
+
+// 刷新按钮
+document.getElementById('refreshBtn').addEventListener('click', loadStats);
+document.getElementById('exportBtn').addEventListener('click', function() {});
+document.getElementById('subjectFilter').addEventListener('change', loadStats);
+document.getElementById('timeFilter').addEventListener('change', loadStats);
+
+// 窗口自适应
 window.addEventListener('resize', function() {
     trendChart.resize();
     pieChart.resize();
