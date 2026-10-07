@@ -121,3 +121,78 @@ venv\Scripts\python.exe src/backend/error_classify.py --migrate
 | 3 | 择校 `school_recommend`：v1 先做占位，**需要 4 号的院校表字段**才能出真实推荐 | 等 4 号 |
 | 4 | `user_context` 里队长希望我传哪些学情字段？ | 我侧默认传 `study_stats` 的 `summary`，可按需扩 |
 | 5 | 7b 到位后需要重跑分类与诊断，重跑口径（是否 `--clear`）请队长定 | 我倾向 `--clear` 全量重跑，保证口径一致 |
+
+
+---
+
+# 七、2026-09-27 队长回复后的增量（更新于 2026-10-07）
+
+队长《对AI接口协议回复》已下发，第六节的 5 个待确认问题全部有答复。
+下面只记**相对本文档前文发生变化**的部分，未变的照旧。
+
+## 7.1 接入方式：走队长网关，不是直连
+
+| 项 | 值 |
+|---|---|
+| 接口 | `POST http://127.0.0.1:8765/ai` |
+| 切换 | `AI_PROVIDER` / `AI_GATEWAY_URL` / `AI_GATEWAY_TIMEOUT` 三个环境变量 |
+| 超时 | 网关单次 180s × 最多 2 次 → 后端等候 370s |
+| 启动 | 队长交付包 `start.ps1`（交付包我侧尚未收到） |
+
+⚠️ `127.0.0.1` 指**调用者所在电脑**：联调时本机要同时跑 Ollama 和队长网关；
+当前未开放局域网，不能拿这个地址跨电脑访问。
+
+## 7.2 ⚠️ code=2 语义变了（本文档第二节的代码说明已过时）
+
+| 分支 | code=2 含义 | 重试归属 |
+|---|---|---|
+| 原协议 / local 直连 | 模型输出不合法 | 后端重试 1 次 |
+| **队长网关** | **请求字段错误** | 网关内部已重试；后端**不重试**，直接反馈调用方 |
+
+**信封结构相同 ≠ 语义相同**。我侧用 `CODE_SEMANTICS` 记录两套语义，
+并在返回信封加 `protocol` 字段显式声明当前走哪套，避免前端按旧口径误判。
+
+队长要求："同一版本名称不能对应两套 code 语义，核对通过后再更新协议版本
+或增加能力版本。" → 已按分支给不同版本标识。
+
+## 7.3 qa 子任务（六项功能映射）
+
+| 功能 | scene | user_context.task | 必填字段 |
+|---|---|---|---|
+| 错题解析 | error_analysis | 不需要 | 见第三节 |
+| 数学指导 | qa | math_guidance | answer, steps |
+| 政治抽查 | qa | politics_quiz | verdict（输入走 input.student_answer） |
+| 作文润色 | essay_review | 不需要 | corrected, issues |
+| 薄弱诊断 | weak_diagnosis | 不需要，传 summary | weak_points, advice |
+| 复习规划 | qa | study_plan | plan |
+
+补充字段：`available_minutes_per_day`（1~480，默认 60）、
+`plan_days`（1~7，默认 3），越界夹取不报错。
+
+⚠️ 上述 qa 字段名是**我侧提案**，以队长交付包 `schemas.json` 为准。
+
+## 7.4 待复核口径（本文档第三节"置信度<0.5 不入库"已升级）
+
+队长：本轮**所有 AI 归因交人工复核**，不因置信度高就入库。
+开关 `AUTO_COMMIT_CLASSIFICATION=False`（ai_interface 与 error_classify 共用）。
+
+排除规则（已写进 `GET /stats` 的 `error.review_policy`，前端可读）：
+- 排除：四类分布（待复核单列「待复核（未确认）」桶）、雷达图计算维度、
+  任何基于 error_type 的推荐
+- 包含：错题总数、科目/题型分布、正确率、薄弱考点（来自人工标签不是 AI 分类）
+
+## 7.5 择校口径变更
+
+未接院校库时返回 **code=1、data=null、raw.reason=school_data_unavailable**
+（原为 code=0 返回空三档）。队长："不能把占位结果包装成成功推荐。"
+
+## 7.6 judge_fragment
+
+队长同意保留我侧独立处理路径，**单独定义和校验 data，不混入五主场景**。
+请求/成功/失败三示例见 `docs/回复队长_第二轮反馈.md` 第 3 节。
+切分判断失败时保留待检查状态，不据此丢弃疑似题目。
+
+## 7.7 7B 重跑
+
+不做 `--clear`。流程：备份（校验行数一致）→ 测试库 → 跑 7B → 对照表。
+工具 `src/backend/ai_recompare_7b.py`，正式库只读。

@@ -142,8 +142,14 @@ def main():
                 conf = 0.0
             etype = data.get("error_type")
             reason = str(data.get("error_reason", ""))[:200]
-            # 置信度 < 0.5 → 打"待人工复核"，error_type 不自动入库
-            review = conf < ai_interface.CONFIDENCE_THRESHOLD
+            # 入库口径（队长 2026-09-27 回复第三节）：
+            #   本轮**所有 AI 归因都交人工复核**，不因置信度高就直接入库——
+            #   命中类别词 / 置信度自评高都不能证明归因正确，实测已出现过
+            #   "高置信度错误归因"。待人工题集验收通过后再打开自动入库。
+            # 无论走哪条分支，待复核的草稿一律：
+            #   error_type=NULL + review_flag='pending_review'
+            review = (not ai_interface.AUTO_COMMIT_CLASSIFICATION
+                      or conf < ai_interface.CONFIDENCE_THRESHOLD)
             cur.execute(
                 "UPDATE error_items SET analysis=?, ai_model=?, ai_elapsed_ms=?,"
                 " error_type=?, error_confidence=?, error_reason=?, review_flag=?"
@@ -153,8 +159,11 @@ def main():
                  "pending_review" if review else None, eid))
             print(f"耗时 {elapsed/1000:.1f} 秒，AI 输出 {len(content)} 字符")
             if review:
-                print(f"  ⚠️ 置信度 {conf} < {ai_interface.CONFIDENCE_THRESHOLD}"
-                      f" → 待人工复核，error_type 不入库")
+                tag = ("本轮全量人工复核（AUTO_COMMIT_CLASSIFICATION=False）"
+                       if ai_interface.AUTO_COMMIT_CLASSIFICATION is False
+                       and conf >= ai_interface.CONFIDENCE_THRESHOLD
+                       else f"置信度 {conf} < {ai_interface.CONFIDENCE_THRESHOLD}")
+                print(f"  ⚠️ {tag} → 待人工复核，error_type 不入库")
             else:
                 print(f"  ✅ 分类 {etype}（置信度 {conf}）已入库")
             print("-" * 58)

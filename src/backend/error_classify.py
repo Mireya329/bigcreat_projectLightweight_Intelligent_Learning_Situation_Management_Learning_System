@@ -80,6 +80,16 @@ CONF_WEAK = 0.40                           # 多命中取最多 / 宽松词推�
 CONF_NONE = 0.00                           # 模板列举 / 无信息
 THRESHOLD = 0.5                            # 低于此值不自动入库
 
+# 本轮联调是否允许 AI 归因自动成为正式分类。
+# 队长 2026-09-27 回复第三节：本轮**所有 AI 归因交人工复核**，
+# 待人工题集质量验收通过后才开放自动入库；开放后仍执行 <0.5 必须复核。
+# 与 ai_interface.AUTO_COMMIT_CLASSIFICATION 保持同一个开关，避免两处口径打架。
+try:
+    import ai_interface as _ai
+    AUTO_COMMIT = _ai.AUTO_COMMIT_CLASSIFICATION
+except Exception:                          # noqa: BLE001 单独跑本模块时也能工作
+    AUTO_COMMIT = False
+
 
 # ------------------------------------------------------------
 # 分类
@@ -241,7 +251,10 @@ def main():
 
     for r in rows:
         code, conf, reason = classify(r["analysis"])
-        review = need_human_review(conf)
+        # 队长 2026-09-27 回复第三节：本轮所有 AI 归因交人工复核，
+        # 不因置信度高就入库。开关打开后才按阈值放行。
+        review = (not AUTO_COMMIT
+                  or need_human_review(conf))
         # 待复核的一律不写 error_type，只留置信度和依据
         final_type = None if review else code
         flag = "pending_review" if review else None

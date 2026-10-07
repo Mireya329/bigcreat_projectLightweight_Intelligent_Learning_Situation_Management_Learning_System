@@ -14,7 +14,9 @@
 运行：
     python src/backend/ai_protocol_test.py
 """
+import json
 import sys
+import urllib.error
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -73,8 +75,12 @@ def main():
     check("data.error_type 为四 code 之一",
           env["data"]["error_type"] in ai.ERROR_TYPE_CODES,
           env["data"]["error_type"])
-    check("信封字段齐全",
-          set(env) == {"code", "scene", "data", "raw", "model", "elapsed_ms"})
+    # 队长协议六字段必须齐全；protocol 是我侧附加的版本说明——
+    # 网关把 code=2 改成了"请求字段错误"，不加这个字段同一份信封会被误读
+    check("信封六字段齐全",
+          {"code", "scene", "data", "raw", "model", "elapsed_ms"} <= set(env))
+    check("信封带 protocol 版本说明",
+          bool(env.get("protocol", {}).get("version")))
     check("scene 归一为 error_analysis", env["scene"] == "error_analysis")
     check("confidence 0.8 → 不需人工复核", r.need_review is False)
 
@@ -201,15 +207,123 @@ def main():
     r2 = ai.explain_wrong_question_v2("求导数", "8")
     check("v2 走 v2 Prompt", r2.ok is True)
 
+    # ---- 14~16. 网关分支（队长 2026-09-27 回复第四节第 2 条）----
+    print("\n[14] 网关分支：后端不再叠加模型重试")
+    old_provider = ai.AI_PROVIDER
+    ai.AI_PROVIDER = "gateway"
+    try:
+        def gw(env):
+            """把预设信封原样返回，并计数"""
+            gw.n += 1
+            return env
+        gw.n = 0
+        ai._call_gateway = lambda scene, subject, input_, uc, task=None: gw(
+            gw.env)
+
+        # 14a 网关成功
+        gw.n = 0
+        gw.env = {"code": 0, "scene": "error_analysis", "data": json.loads(GOOD),
+                  "raw": None, "model": "qwen2.5:7b", "elapsed_ms": 21000}
+        r = ai.analyze_error("求导数", "1")
+        check("网关 code=0 → 我侧 code=0", r.code == 0, f"实际 {r.code}")
+        check("只请求网关 1 次（不叠加后端重试）", gw.n == 1, f"实际 {gw.n} 次")
+        check("model 透传网关的", r.model == "qwen2.5:7b", r.model)
+
+        # 14b 网关 code=1（模型侧已重试仍失败）
+        gw.n = 0
+        gw.env = {"code": 1, "scene": "error_analysis", "data": None,
+                  "raw": {"reason": "model_failed_after_retry"},
+                  "model": "qwen2.5:7b", "elapsed_ms": 360000}
+        r = ai.analyze_error("求导数", "2")
+        check("网关 code=1 → 我侧 code=1（降级）", r.code == 1, f"实际 {r.code}")
+        check("data=None、content 为空", r.data is None and r.content == "")
+        check("网关失败也不重试", gw.n == 1, f"实际 {gw.n} 次")
+        check("保留网关 raw 供排障",
+              (r.raw or {}).get("reason") == "model_failed_after_retry", r.raw)
+
+        # 14c 网关 code=2（请求字段错误）——重试无意义，原样反馈
+        gw.n = 0
+        gw.env = {"code": 2, "scene": "error_analysis", "data": None,
+                  "raw": {"reason": "bad_request: subject 非法"},
+                  "model": "qwen2.5:7b", "elapsed_ms": 5}
+        r = ai.analyze_error("求导数", "3")
+        check("网关 code=2 → 我侧保留 code=2 语义", r.code == 2, f"实际 {r.code}")
+        check("code=2 不重试（重试没有意义）", gw.n == 1, f"实际 {gw.n} 次")
+        check("错误信息带出网关原因",
+              "bad_request" in (r.error or ""), r.error)
+
+        # 14d 网关 code=0 但 data 缺字段：后端继续校验，但不回头重试
+        gw.n = 0
+        gw.env = {"code": 0, "scene": "error_analysis",
+                  "data": {"solution": "只有解析，没给分类"},
+                  "raw": None, "model": "qwen2.5:7b", "elapsed_ms": 22000}
+        r = ai.analyze_error("求导数", "4")
+        check("网关成功但字段不全 → 我侧降级 code=1", r.code == 1, f"实际 {r.code}")
+        check("校验失败也不重发请求", gw.n == 1, f"实际 {gw.n} 次")
+        check("raw.retry_owner 标明重试归网关",
+              (r.raw or {}).get("retry_owner") == "gateway", r.raw)
+    finally:
+        ai.AI_PROVIDER = old_provider
+
+    print("\n[15] 网关分支：HTTP 状态码 ≠ 信封 code，分开处理")
+    import urllib.error
+    ai.AI_PROVIDER = "gateway"
+    try:
+        ai._call_gateway = lambda *a, **k: (_ for _ in ()).throw(
+            urllib.error.HTTPError(ai.AI_GATEWAY_URL, 503, "busy", {}, None))
+        r = ai.analyze_error("求导数", "5")
+        check("HTTP 503 → code=1（不是 code=2）", r.code == 1, f"实际 {r.code}")
+        check("提示稍后再试、不无限重试", "稍后再试" in (r.error or ""), r.error)
+        check("HTTP 状态码记进 raw", (r.raw or {}).get("http_status") == 503, r.raw)
+    finally:
+        ai.AI_PROVIDER = old_provider
+
+    print("\n[16] qa 子任务在网关下按 task 分派")
+    ai.AI_PROVIDER = "gateway"
+    try:
+        seen = {}
+        def gw2(scene, subject, input_, uc, task=None):
+            seen["scene"], seen["task"], seen["uc"] = scene, task, uc
+            if task == "study_plan":
+                return {"code": 0, "scene": scene, "data": {"plan": ["第1天"]},
+                        "raw": None, "model": "m", "elapsed_ms": 1}
+            if task == "politics_quiz":
+                return {"code": 0, "scene": scene, "data": {"verdict": "基本正确"},
+                        "raw": None, "model": "m", "elapsed_ms": 1}
+            return {"code": 0, "scene": scene,
+                    "data": {"answer": "1", "steps": ["a"]},
+                    "raw": None, "model": "m", "elapsed_ms": 1}
+        ai._call_gateway = gw2
+
+        r = ai.study_plan("复习高数", plan_days=10, minutes_per_day=999)
+        check("study_plan 走 scene=qa + task=study_plan",
+              seen["scene"] == "qa" and seen["task"] == "study_plan", seen)
+        check("plan_days 越界夹到 7", seen["uc"]["plan_days"] == 7,
+              seen["uc"].get("plan_days"))
+        check("每日分钟夹到 480", seen["uc"]["available_minutes_per_day"] == 480,
+              seen["uc"].get("available_minutes_per_day"))
+        check("渲染出复习计划", "复习计划" in r.content, r.content[:40])
+
+        r = ai.politics_quiz("什么是实践", "实践是……")
+        check("政治抽查 verdict 字段生效", (r.data or {}).get("verdict") == "基本正确")
+        check("渲染出判定", "判定" in r.content, r.content[:40])
+
+        r = ai.math_guidance("求极限")
+        check("数学指导要 steps", "steps" in (r.data or {}))
+        check("渲染出步骤", "步骤" in r.content, r.content[:40])
+    finally:
+        ai.AI_PROVIDER = old_provider
+
     print("\n" + "=" * 64)
     if _failures:
         print(f"❌ {len(_failures)} 项未通过：")
         for x in _failures:
             print("   -", x)
         return 1
-    print("✅ 全部通过。三条硬约束均已落地：")
+    print("✅ 全部通过。已落地的约束：")
     print("   · code=0/1 信封结构正确")
-    print("   · code=2 格式不符自动重试 1 次后降级")
+    print("   · 直连 Ollama：code=2 重试 1 次后降级")
+    print("   · 网关分支：不叠加模型重试，code=2=请求字段错误原样反馈")
     print("   · 降级时 data=None、content 为空串，原文只留在 raw")
     return 0
 

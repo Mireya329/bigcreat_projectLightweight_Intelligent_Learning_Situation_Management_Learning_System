@@ -56,16 +56,39 @@ def collect_stats(cur, uid: int) -> dict:
         "concept": "概念理解错误", "calculation": "计算失误",
         "misread": "审题偏差", "method": "方法缺失",
     }
-    by_error_type = {}
+    # ---- 错误原因分布（供前端饼图）----
+    #
+    # 【待复核口径 · 队长 2026-09-27 回复第四节第 1 条】
+    # 规则：AI 归因未经人工确认不得成为正式分类，因此
+    #   · 复核中的草稿在库里是 error_type=NULL + review_flag='pending_review'
+    #   · 本查询把 review_flag='pending_review' 的单列成"待复核"桶，
+    #     所以四类分布里**只含已确认的分类**，总数仍然守恒、
+    #     还能一眼看出有多少题没定论。
+    #   · 分类被人工确认后（review_flag 清空）自动从"待复核"移进对应桶。
+    by_error_type: dict[str, int] = {}
     for row in cur.execute(
-            "SELECT error_type, COUNT(*) n FROM error_items"
-            " WHERE user_id=? GROUP BY error_type", (uid,)):
-        by_error_type[type_label.get(row["error_type"], "未分类")] = row["n"]
+            "SELECT review_flag, error_type, COUNT(*) n FROM error_items"
+            " WHERE user_id=? GROUP BY review_flag, error_type", (uid,)):
+        if row["review_flag"] == "pending_review":
+            label = "待复核（未确认）"
+        else:
+            label = type_label.get(row["error_type"], "未分类")
+        by_error_type[label] = by_error_type.get(label, 0) + row["n"]
 
-    # 待人工复核数（置信度 < 0.5，未自动入库的那些）
+    # 待人工复核数（未确认归因的那些，error_type 在库里是 NULL）
     pending_review = cur.execute(
         "SELECT COUNT(*) FROM error_items"
         " WHERE user_id=? AND review_flag='pending_review'", (uid,)).fetchone()[0]
+
+    # 已人工确认、分类真正生效的题数（前端可用它判断"分布图能不能信"）
+    confirmed = cur.execute(
+        "SELECT COUNT(*) FROM error_items"
+        " WHERE user_id=? AND error_type IS NOT NULL AND error_type != ''"
+        " AND (review_flag IS NULL OR review_flag != 'pending_review')",
+        (uid,)).fetchone()[0]
+
+    # 雷达图"计算"维：按 error_type 统计，同样只认已确认的——
+    # 待复核的不计入，否则未确认归因会渗进能力评估。
 
     due = cur.execute(
         "SELECT COUNT(*) FROM review_schedules r"
@@ -130,7 +153,9 @@ def collect_stats(cur, uid: int) -> dict:
         calc_wrong = cur.execute(
             "SELECT COUNT(*) n FROM error_items e JOIN subjects s"
             " ON e.subject_id=s.id WHERE e.user_id=? AND s.code=?"
-            " AND e.error_type IN ('calculation_error', 'calculation')",
+            " AND e.error_type IN ('calculation_error', 'calculation')"
+            # 只认已确认的分类：待复核的不渗进能力评估
+            " AND (e.review_flag IS NULL OR e.review_flag != 'pending_review')",
             (uid, code)).fetchone()["n"]
         radar[code] = {
             # 单词维度目前只有英语类科目有数据，其余给 None
@@ -160,14 +185,62 @@ def collect_stats(cur, uid: int) -> dict:
         "SELECT SUM(duration_sec) sec FROM study_sessions WHERE user_id=?",
         (uid,)).fetchone()["sec"] or 0
 
+    # ---- 队长 2026-09-27 要求补充的六项映射信息 ----
+    # 用途：作为 user_context 送给 weak_diagnosis / study_plan。
+    # 原则：**没有数据源的一律给 None 并说明，不用随机数或推测值填充**。
+
+    # 1) 统计周期：取练习与计时记录里最早/最晚的一天
+    span = cur.execute(
+        "SELECT MIN(d) lo, MAX(d) hi FROM ("
+        " SELECT practiced_at d FROM quiz_records WHERE user_id=?"
+        " UNION ALL SELECT studied_at FROM study_sessions WHERE user_id=?"
+        ")", (uid, uid)).fetchone()
+
+    # 2) 科目清单（带错题数）
+    subject_list = [{"code": r["code"], "name": r["name"], "error_count": r["n"]}
+                    for r in cur.execute(
+                        "SELECT s.code, s.name, COUNT(e.id) n FROM subjects s"
+                        " LEFT JOIN error_items e ON e.subject_id=s.id"
+                        " AND (e.review_flag IS NULL OR e.review_flag!='pending_review')"
+                        " WHERE s.user_id=? GROUP BY s.id", (uid,))]
+
+    # 3) 各考点：错题数有，正确题量**目前没有数据源**（quiz_records 不记考点），
+    #    所以给 None——宁可让模型看到"未知"，也不能编一个数让它当真。
+    point_list = [{"name": p["point"], "subject_code": p["subject_code"],
+                   "error_count": p["count"], "correct_count": None,
+                   "note": "正确题量暂无数据源（练习记录未记考点）"}
+                  for p in weak_points]
+
+    # 4) 已确认错误类型分布：**不含**待复核的（队长要求未确认归因不得进入分布）
+    confirmed_types = {}
+    for row in cur.execute(
+            "SELECT error_type, COUNT(*) n FROM error_items"
+            " WHERE user_id=? AND error_type IS NOT NULL AND error_type != ''"
+            " AND (review_flag IS NULL OR review_flag != 'pending_review')"
+            " GROUP BY error_type", (uid,)):
+        confirmed_types[type_label.get(row["error_type"], row["error_type"])] = row["n"]
+
     # 页面顶部汇总（算不出的仍给 None，不编造）
     summary = {
+        # —— 原有字段，前端在用，不能动 ——
         "total_errors": sum(by_subject.values()),
         "mastered_errors": by_mastery.get("已掌握", 0),
         "total_practice_count": q_total,
         "total_study_hours": round(s_all / 3600, 2),
         "today_study_hours": round(s_today / 3600, 2),
         "accuracy": round(q_correct / q_total * 100, 1) if q_total else None,
+        # —— 新增：给 AI 的六项映射 ——
+        "period": {"from": span["lo"], "to": span["hi"]},
+        "subjects": subject_list,
+        "practice": {"total": q_total, "correct": q_correct},
+        "points": point_list,
+        "confirmed_error_types": confirmed_types,
+        "pending_review": pending_review,
+        # 5) 每日可用时间 / 计划天数：这是**用户填写项**，不是统计项，
+        #    由 user_context.available_minutes_per_day / plan_days 传入，
+        #    这里留 None，避免模型把"没有"当成"0 分钟"。
+        "available_minutes_per_day": None,
+        "plan_days": None,
     }
 
     # 趋势图：按天 × 科目 的正确率（3 号清单第 1 项）
@@ -208,7 +281,23 @@ def collect_stats(cur, uid: int) -> dict:
             "ai_parsed": ai_done,
             "gated": gated,
             "manual": manual,
-            "pending_review": pending_review,   # 置信度<0.5，待人工复核
+            "pending_review": pending_review,   # 未确认归因，error_type 在库里是 NULL
+            "confirmed": confirmed,             # 已确认、分类真正生效的题数
+            # 下面这份规则直接给前端和队长看，避免把"待复核"当成已审核
+            "review_policy": {
+                "pending_means": "error_type 为 NULL，未确认，不能当结论用",
+                "excluded_from": [
+                    "by_error_type（四类分布）——待复核的落在「未分类」，不进四类",
+                    "radar 的计算维度——按 error_type 统计，待复核的不计入",
+                    "任何基于 error_type 的推荐与归因结论",
+                ],
+                "included_in": [
+                    "错题总数、科目分布、题型分布——这些是原始作答事实，与 AI 分类无关",
+                    "正确率——来自 quiz_records 的真实作答记录，不受 AI 分类影响",
+                    "薄弱考点——来自人工/规则打的 error_item_tags，不是 AI 分类",
+                ],
+                "auto_commit": False,           # 本轮全量人工复核，见 ai_interface
+            },
         },
         "weak_points": weak_points,
         "radar": radar,
