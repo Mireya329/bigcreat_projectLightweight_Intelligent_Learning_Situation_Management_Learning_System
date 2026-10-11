@@ -481,6 +481,24 @@ def main():
 
     ai.AI_PROVIDER = old_provider
 
+    # ---- v2-6：judge_fragment 判 B 必须给 stem ----
+    print("\n[v2-6] judge_fragment：判 B 会补题，必须带题干")
+    ok, why = ai.validate("judge_fragment", {"choice": "B"})
+    check("判 B 无 stem 被拒", ok is False, why)
+    check("拒因提到 stem", "stem" in why, why)
+    ok, _ = ai.validate("judge_fragment", {"choice": "B", "stem": "设 z=arctan(...)"})
+    check("判 B 有 stem 放行", ok is True)
+    ok, _ = ai.validate("judge_fragment", {"choice": "C"})
+    check("判 C 不需要 stem（不写库，无所谓）", ok is True)
+
+    # ---- v2-7：label 以交付包 schemas 为准 ----
+    print("\n[v2-7] error_type_label 从 schemas.json 读，不靠手抄")
+    from_schema = ai._labels_from_schema()
+    check("能从包里读到 4 个 label", len(from_schema) == 4, str(from_schema))
+    check("concept 的 label 是「概念不清」",
+          ai.ERROR_TYPE_CODES.get("concept_misunderstanding") == "概念不清",
+          str(ai.ERROR_TYPE_CODES))
+
     print("\n" + "=" * 64)
     if _failures:
         print(f"❌ {len(_failures)} 项未通过：")

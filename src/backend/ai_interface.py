@@ -215,12 +215,36 @@ def subject_from_code(code: Optional[str]) -> str:
           f"本次退回 {DEFAULT_SUBJECT!r}。请把映射补进 SUBJECT_CODE_MAP。")
     return DEFAULT_SUBJECT
 
-ERROR_TYPE_CODES = {                   # 四个 code，队长协议冻结，不可自行增删
-    "concept_misunderstanding": "概念理解错误",
+# ⚠️ label 必须以队长交付包 schemas.json 的 enum 为准，不要照自己的习惯写。
+#    我 v1 时期写成"概念理解错误"，与协议枚举"概念不清"不符——
+#    2026-10-11 真机时还据此把 7B 的正确输出判成了不合格（见错误日志条目 37）。
+#    现改为从 vendor/captain_ai_v2/schemas.json 直接读取，包不在才用下面兜底。
+ERROR_TYPE_CODES: dict[str, str] = {    # 四个 code，队长协议冻结，不可自行增删
+    "concept_misunderstanding": "概念不清",
     "calculation_error": "计算失误",
     "misread_question": "审题偏差",
     "method_gap": "方法缺失",
 }
+
+
+def _labels_from_schema() -> dict[str, str]:
+    """从交付包 schemas.json 读 label 枚举，覆盖上面的兜底表。
+
+    schemas 里 error_type.enum 与 error_type_label.enum 是同序的两列，
+    按位配对即可。读不到任何一步就返回空 dict，让兜底表继续生效。
+    """
+    try:
+        props = SCHEMAS_JSON["error_analysis"]["properties"]
+        codes = props["error_type"]["enum"]
+        labels = props["error_type_label"]["enum"]
+        if len(codes) != len(labels):
+            return {}
+        return {str(c): str(l) for c, l in zip(codes, labels)}
+    except (KeyError, TypeError, AttributeError):
+        return {}
+
+
+ERROR_TYPE_CODES.update(_labels_from_schema())
 
 # 旧取值 → 队长新 code（用于把库里已有的历史数据迁过来）
 LEGACY_ERROR_TYPE_MAP = {
@@ -965,6 +989,12 @@ def validate(scene: str, data: Any, task: Optional[str] = None) -> tuple[bool, s
         ch = str(data.get("choice", "")).strip().upper()[:1]
         if ch not in ("A", "B", "C"):
             return False, f"choice 只能是 A/B/C: {data.get('choice')!r}"
+        # 判 B = "这是一道被漏掉的独立题" → ocr_recover 会 INSERT 一道新题。
+        # 补一道不存在的题比漏一道更糟，所以 B 是三个选项里唯一会写库的，
+        # 必须要求模型同时给出题干，否则按不合法处理（不能只靠模型自觉）。
+        # 实测（2026-10-11，7B）模型确实会填 stem，但那是模型表现不是契约保证。
+        if ch == "B" and not str(data.get("stem", "")).strip():
+            return False, "choice=B 必须同时给出 stem（题干），否则无法安全补题"
 
     return True, ""
 

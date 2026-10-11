@@ -127,6 +127,13 @@ def scene_judge_fragment() -> dict:
 
 
 def main() -> int:
+    # 支持 --model：7b 到位后要用同一批题跑新旧对照，
+    # 不能一直拿 0.5b 时代的结论当现状（那时 qa 差、判残片随机都是小模型的问题）。
+    if "--model" in sys.argv:
+        i = sys.argv.index("--model")
+        if i + 1 < len(sys.argv):
+            ai.MODEL_NAME = sys.argv[i + 1]
+
     print("=" * 62)
     print(f"五场景真机覆盖（模型 {ai.MODEL_NAME}）")
     print("=" * 62)
