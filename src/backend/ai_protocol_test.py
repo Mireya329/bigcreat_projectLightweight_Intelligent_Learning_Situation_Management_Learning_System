@@ -425,6 +425,54 @@ def main():
           uc["plan_days"] == 3 and uc["available_minutes_per_day"] == 60,
           f"{uc['plan_days']}/{uc['available_minutes_per_day']}")
 
+    # ---- [22] 网关请求前置自检：本侧字段不合规时本地拦下 ----
+    # 起因：择校传 {"profile": ...}、诊断传 {"stats_json": ...}，
+    # 网关 input 只认 6 个 key，真打过去必然 code=2，且网关 code=2 重试无意义。
+    print("\n[22] 网关请求前置自检（不合规字段本地拦下，不发请求）")
+
+    old_provider = ai.AI_PROVIDER
+    ai.AI_PROVIDER = "gateway"
+
+    check("judge_fragment 被拦（网关不支持该 scene）",
+          ai._gateway_request_error("judge_fragment", {"text": "x"}) is not None)
+    check("未知字段 profile 被拦",
+          ai._gateway_request_error("school_recommend", {"profile": "x"}) is not None)
+    check("未知字段 stats_json 被拦",
+          ai._gateway_request_error("weak_diagnosis", {"stats_json": "x"}) is not None)
+    check("缺正文字段被拦",
+          ai._gateway_request_error("qa", {"student_answer": "x"}) is not None)
+    check("正文为空串被拦",
+          ai._gateway_request_error("qa", {"question": "  "}) is not None)
+    check("question 与 text 内容不一致被拦",
+          ai._gateway_request_error("qa", {"question": "a", "text": "b"}) is not None)
+    check("合规 input 放行",
+          ai._gateway_request_error("error_analysis",
+                                    {"question": "题", "student_answer": "答"}) is None)
+    check("择校改字段名后放行",
+          ai._gateway_request_error("school_recommend", {"text": "本科某二本"}) is None)
+    check("超长正文被拦（网关上限 6000）",
+          ai._gateway_request_error("qa", {"text": "x" * 6001}) is not None)
+
+    # 端到端：网关模式下，不合规请求绝不能发出 HTTP
+    def _must_not_send(*a, **k):
+        raise AssertionError("不该发请求：字段不合规应在本地拦下")
+
+    ai._call_gateway = _must_not_send
+    r = ai.judge_fragment("残片", "", "")
+    check("judge_fragment 在网关模式下直接 code=2 且未发请求",
+          r.code == 2 and "前置自检" in (r.error or ""),
+          f"code={r.code} err={r.error}")
+
+    ai.SCHOOL_DB_READY = True
+    try:
+        r = ai.school_recommend({"本科": "某二本", "目标": "计算机"})
+        check("择校端到端：字段已合规，不再被前置拦下",
+              "前置自检" not in (r.error or ""), f"err={r.error}")
+    finally:
+        ai.SCHOOL_DB_READY = False
+
+    ai.AI_PROVIDER = old_provider
+
     print("\n" + "=" * 64)
     if _failures:
         print(f"❌ {len(_failures)} 项未通过：")

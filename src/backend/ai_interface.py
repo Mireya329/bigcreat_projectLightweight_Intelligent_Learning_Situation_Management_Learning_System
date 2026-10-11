@@ -1162,6 +1162,22 @@ def call_ai(req: AIRequest) -> AIResponse:
             protocol=_gateway_protocol(None) if AI_PROVIDER == "gateway" else None,
         )
 
+    # ---- 网关前置自检：本侧字段不合规时，别浪费一次 HTTP 往返 ----
+    # 网关只认 5 个 scene（judge_fragment 是后端扩展，网关明确不支持），
+    # input 的 key 也只允许 6 个。这两条不过，网关必然回 code=2 且重试无意义。
+    if AI_PROVIDER == "gateway":
+        why = _gateway_request_error(scene, req.input)
+        if why:
+            return AIResponse(
+                ok=False, scene=scene, content="",
+                raw={"reason": "invalid_request", "detail": why,
+                     "checked_by": "backend_preflight"},
+                elapsed_ms=_elapsed(t0), code=2, data=None,
+                model=MODEL_NAME,
+                error=f"请求字段错误（code=2，网关前置自检拦下，未发请求）：{why}",
+                protocol=_gateway_protocol(None),
+            )
+
     # ---- 分支一：MOCK 或服务离线，直接给占位结构化数据 ----
     if MOCK_MODE or not check_ollama_alive():
         if scene == "qa" and task:
@@ -1181,6 +1197,48 @@ def call_ai(req: AIRequest) -> AIResponse:
 
 def _elapsed(t0: float) -> int:
     return int((time.time() - t0) * 1000)
+
+
+# 网关侧硬约束（从 vendor/captain_ai_v2/captain_ai.py 抄下来的，别凭印象改）
+GATEWAY_SCENES = ("error_analysis", "qa", "weak_diagnosis",
+                  "school_recommend", "essay_review")
+GATEWAY_INPUT_KEYS = {"question", "stem", "text", "essay",
+                      "student_answer", "reference_answer"}
+GATEWAY_PRIMARY_KEYS = ("question", "stem", "text", "essay")
+
+
+def _gateway_request_error(scene: str, inp: Any) -> Optional[str]:
+    """按网关规则自查请求，返回不合规原因（合规返回 None）。
+
+    宁可在本地拦下并说清原因，也不要发出去拿一个 code=2 回来——
+    网关的 code=2 表示"请求字段错误"，重试无意义，白等一个超时。
+    """
+    if scene not in GATEWAY_SCENES:
+        return (f"scene={scene} 不在网关支持的 5 个场景内"
+                f"（judge_fragment 是后端扩展，网关明确不支持，请走 local 分支）")
+
+    if not isinstance(inp, dict):
+        return None                      # 字符串由调用方保证非空
+
+    bad = set(inp) - GATEWAY_INPUT_KEYS
+    if bad:
+        return (f"input 含网关不认识的字段 {sorted(bad)}，"
+                f"只允许 {sorted(GATEWAY_INPUT_KEYS)}")
+
+    primary = [inp[k] for k in GATEWAY_PRIMARY_KEYS if k in inp]
+    if not primary:
+        return "input 缺少 question/stem/text/essay 之一（网关要求有正文文本）"
+    if any(not isinstance(x, str) or not x.strip() for x in primary):
+        return "input 正文必须是非空字符串"
+    if len(set(primary)) != 1:
+        return "question/stem/text/essay 内容不一致（填一个就够）"
+
+    text = primary[0]
+    if "reference_answer" in inp:
+        text = text + "\n参考答案：" + str(inp["reference_answer"])
+    if len(text) > 6000:
+        return f"input 正文 {len(text)} 字符，超过网关上限 6000"
+    return None
 
 
 def _student_answer_conflict(input_: Any, uc: Any) -> Optional[tuple]:
@@ -1660,7 +1718,8 @@ def diagnose_weakness(stats: dict, subject: str = DEFAULT_SUBJECT,
     """
     return call_ai(AIRequest(
         scene="weak_diagnosis", subject=subject,
-        input={"stats_json": render_stats_text(stats)},
+        # 字段名必须用网关白名单内的 key（stats_json 会被网关判 code=2）
+        input={"text": render_stats_text(stats)},
         user_context=user_context))
 
 
@@ -1687,9 +1746,11 @@ def school_recommend(profile: dict, subject: str = DEFAULT_SUBJECT,
             error="院校数据未就绪（school_data_unavailable）："
                   "等 4 号提供考研院校表后再开放，避免模型编造校名",
         )
+    # ① 字段名必须在网关白名单内（profile 会被判 code=2）
+    # ② 内容必须是自然语言，不能喂 JSON——实测模型会把 key 抄成校名
     return call_ai(AIRequest(
         scene="school_recommend", subject=subject,
-        input={"profile": json.dumps(profile, ensure_ascii=False)},
+        input={"text": render_stats_text(profile)},
         user_context=user_context))
 
 
