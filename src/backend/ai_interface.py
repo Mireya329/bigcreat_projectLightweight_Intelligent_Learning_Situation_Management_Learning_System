@@ -940,11 +940,14 @@ def validate(scene: str, data: Any, task: Optional[str] = None) -> tuple[bool, s
         et = str(data.get("error_type", "")).strip().lower()
         if et not in ERROR_TYPE_CODES:
             return False, f"error_type 不在四个 code 内: {data.get('error_type')!r}"
-        # label 必须与 code 一一对应（backend_contract.validate_response 同样校验）
-        if data.get("error_type_label") != ERROR_TYPE_CODES.get(et):
-            return False, (f"error_type_label 与 code 不匹配: "
-                           f"{data.get('error_type_label')!r} ≠ "
-                           f"{ERROR_TYPE_CODES.get(et)!r}")
+        # label 不在这里判死——只记录，交给 normalize_error_analysis 以 code 覆盖。
+        #
+        # 改这个的原因（2026-10-11 真机）：7B 把 concept_misunderstanding 的
+        # label 写成"概念不清"（应为"概念理解错误"），其余字段全对、无作答时
+        # 置信度也正确归 0，却因为我侧这一条被判 code=1 降级，整条结果丢掉。
+        # label 是给人看的展示值，code 才是入库依据；为了同义差异丢弃一次
+        # 正确调用不划算。网关那边仍会照自己的规则重试，两边口径不冲突。
+        # 一致性由 normalize_error_analysis 兜底（见 test 第 23 组）。
         try:
             conf = float(data.get("error_confidence"))
         except (TypeError, ValueError):
@@ -1605,15 +1608,20 @@ def analyze_error(question: str, student_answer: str = "",
                   subject: str = DEFAULT_SUBJECT,
                   user_context: Optional[dict] = None,
                   variant: Optional[str] = None,
-                  stable: Optional[bool] = None) -> AIResponse:
+                  stable: Optional[bool] = None,
+                  reference_answer: Optional[str] = None) -> AIResponse:
     """错题智能解析（队长协议 scene=error_analysis）。
 
     variant="v2"          走带 OCR 残缺识别的 Prompt
     stable=True           同题多跑做分类一致性校验（默认取 STABILITY_CHECK）
+    reference_answer      参考答案（网关会拼进正文，本地分支拼进 prompt）
     """
+    inp = {"question": question, "student_answer": student_answer}
+    if reference_answer:
+        inp["reference_answer"] = reference_answer
     req = AIRequest(
         scene="error_analysis", subject=subject, variant=variant,
-        input={"question": question, "student_answer": student_answer},
+        input=inp,
         user_context=user_context,
     )
     if stable is None:

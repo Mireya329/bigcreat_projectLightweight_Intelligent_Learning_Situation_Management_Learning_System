@@ -36,12 +36,14 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sqlite3
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
@@ -59,7 +61,8 @@ REPORT = ROOT / "docs" / "7B重跑对照表.md"
 PICK_SQL = (
     "SELECT id, user_id, subject_id, question_text, ocr_text,"
     " analysis, error_type, error_confidence, error_reason, review_flag,"
-    " ai_model, ai_elapsed_ms FROM error_items"
+    " ai_model, ai_elapsed_ms,"
+    " wrong_answer_text, answer_text FROM error_items"
     " WHERE analysis IS NOT NULL AND analysis != ''"
     " AND (ai_model IS NULL"
     "      OR ai_model NOT IN ('quality_gate', 'manual'))"
@@ -174,23 +177,53 @@ def load_old_results() -> list[dict]:
         con.close()
 
 
-def run_7b(subject_code_map: dict[int, str]) -> list[dict]:
-    """在测试库上跑 7B，写回测试库，返回对照记录。"""
+def _gateway_alive() -> bool:
+    """探队长网关是否活着（只做连通性检查，不发起推理）。"""
+    import urllib.request
+    url = os.getenv("AI_GATEWAY_URL", "http://127.0.0.1:8765/ai")
+    health = url.rsplit("/", 1)[0] + "/health"
+    try:
+        with urllib.request.urlopen(health, timeout=5):
+            return True
+    except Exception:                                        # noqa: BLE001
+        return False
+
+
+def run_7b(subject_code_map: dict[int, str],
+           model: Optional[str] = None) -> list[dict]:
+    """在测试库上重跑，写回测试库，返回对照记录。
+
+    model 为空表示沿用 ai_interface 当前配置。
+    """
+    if model:
+        ai.MODEL_NAME = model
     con = sqlite3.connect(str(TEST_DB))
     con.row_factory = sqlite3.Row
     rows = [dict(r) for r in con.execute(PICK_SQL).fetchall()]
 
     records = []
-    print(f"\n开始重跑 {len(rows)} 道题（模型 {ai.MODEL_NAME}，"
-          f"provider={ai.AI_PROVIDER}）")
+    # 走网关时模型由网关决定（7b），本地 MODEL_NAME 常量不代表实际用哪个，
+    # 打印它会被误读。实际模型逐条记在 rec["model"] 里（来自响应信封）。
+    src = ("网关 " + os.getenv("AI_GATEWAY_URL", "http://127.0.0.1:8765/ai")
+           if ai.AI_PROVIDER == "gateway"
+           else f"直连 Ollama {ai.MODEL_NAME}")
+    print(f"\n开始重跑 {len(rows)} 道题（{src}，provider={ai.AI_PROVIDER}）")
     print("=" * 70)
     for r in rows:
         subj = ai.subject_from_code(subject_code_map.get(r["subject_id"]))
         t0 = time.time()
+        # 有真实施答/参考答案就用真实的；没有就如实传占位并标注，
+        # 不能一律塞"未识别"——那样会掩盖"这题到底有没有作答"这件事。
+        # 没有就是没有，传空串让网关自己的规则去判 missing。
+        # 不替它编一句"未识别"——那是给模型喂料，会把"没数据"伪装成"有数据"。
+        raw_answer = (r.get("wrong_answer_text") or "").strip()
+        has_answer = bool(raw_answer)
+        reference = (r.get("answer_text") or "").strip() or None
         resp = ai.analyze_error(
             question=r["question_text"] or "",
-            student_answer="（OCR 未识别出手写作答）",
+            student_answer=raw_answer,
             subject=subj,
+            reference_answer=reference,
         )
         d = resp.data or {}
         rec = {
@@ -200,6 +233,7 @@ def run_7b(subject_code_map: dict[int, str]) -> list[dict]:
             "prompt_variant": "v1",
             "code": resp.code,
             "elapsed_ms": resp.elapsed_ms,
+            "fail_reason": "" if resp.code == 0 else str(resp.error or "")[:160],
             "new_type": d.get("error_type"),
             "new_conf": d.get("error_confidence"),
             "new_reason": str(d.get("error_reason", ""))[:200],
@@ -207,6 +241,7 @@ def run_7b(subject_code_map: dict[int, str]) -> list[dict]:
             "old_conf": r.get("error_confidence"),
             "old_reason": (r.get("error_reason") or "")[:200],
             "old_model": r.get("ai_model"),
+            "has_answer": has_answer,   # 库里到底有没有学生作答——决定结论能不能信
             "human_verdict": "",        # 留空，人工填
         }
         records.append(rec)
@@ -267,19 +302,30 @@ def write_report(records: list[dict], prepared_only: bool = False) -> None:
             "## 对照表",
             "",
             "| 题目ID | 旧模型 | 旧分类 | 旧置信度 | 新模型 | 新分类 | 新置信度 | "
-            "code | 耗时ms | 人工复核结论 |",
-            "|---|---|---|---|---|---|---|---|---|---|",
+            "code | 耗时ms | 有作答 | 失败原因 | 人工复核结论 |",
+            "|---|---|---|---|---|---|---|---|---|---|---|",
         ]
         for r in records:
             lines.append(
                 f"| {r['id']} | {r['old_model'] or '-'} | {r['old_type'] or 'NULL'} "
                 f"| {r['old_conf']} | {r['model']} | {r['new_type'] or 'NULL'} "
                 f"| {r['new_conf']} | {r['code']} | {r['elapsed_ms']} "
+                f"| {'有' if r.get('has_answer') else '无'} "
+                f"| {r.get('fail_reason') or '-'} "
                 f"| {r['human_verdict'] or '（待填）'} |")
         same = sum(1 for r in records if r["old_type"] == r["new_type"])
+        ok = sum(1 for r in records if r["code"] == 0)
+        no_ans = sum(1 for r in records if not r.get("has_answer"))
         lines += [
             "",
-            f"新旧分类一致：{same}/{len(records)}",
+            f"新旧分类一致：{same}/{len(records)}；调用成功（code=0）："
+            f"{ok}/{len(records)}",
+            "",
+            f"⚠️ **{no_ans}/{len(records)} 道题库内根本没有学生作答字段数据**"
+            f"（OCR 只识别出题目碎片，未分离作答）。按 v2 规则无作答时"
+            f" `error_confidence` 强制 0 并交人工复核，所以这批题**只能验证"
+            f"降级行为，不能验证分类能力**。要验证分类能力，需要先把 OCR 的"
+            f"作答分离做出来，或人工补录作答。",
             "",
             "## 归因依据（新）",
             "",
@@ -321,9 +367,25 @@ def write_report(records: list[dict], prepared_only: bool = False) -> None:
 
 
 def main() -> int:
-    args = set(sys.argv[1:])
-    if "--verify-backup" in args:
+    args = sys.argv[1:]
+    argset = set(args)
+    if "--verify-backup" in argset:
         return 1 if verify_backup() else 0
+
+    # --model <name>  覆盖模型名（默认沿用 ai_interface 的配置）
+    model = None
+    if "--model" in args:
+        idx = args.index("--model")
+        if idx + 1 < len(args):
+            model = args[idx + 1]
+    # --provider <local|gateway>  走队长网关还是直连 Ollama
+    provider = None
+    if "--provider" in args:
+        idx = args.index("--provider")
+        if idx + 1 < len(args):
+            provider = args[idx + 1]
+    if provider:
+        ai.AI_PROVIDER = provider
 
     print("=" * 70)
     print("7B 重跑对照：备份 → 测试库 → 重跑 → 对照")
@@ -340,12 +402,19 @@ def main() -> int:
 
     records: list[dict] = []
     if "--run" in args:
-        if not ai.check_ollama_alive():
-            print("\n⚠️ 模型服务不在线。网关模式请先启动队长网关（start.ps1），"
-                  "直连模式请先 `ollama serve`。")
+        # 走网关时该探网关（8765），不是 Ollama（11434）——
+        # 否则网关明明活着也会被误报"服务不在线"
+        if ai.AI_PROVIDER == "gateway":
+            alive = _gateway_alive()
+            hint = "网关模式请先启动队长网关（vendor/captain_ai_v2/server.py）"
+        else:
+            alive = ai.check_ollama_alive()
+            hint = "直连模式请先 `ollama serve`"
+        if not alive:
+            print(f"\n⚠️ 服务不在线（provider={ai.AI_PROVIDER}）。{hint}。")
             print("   本次只完成备份与测试库准备，未写入任何新结果。")
         else:
-            records = run_7b(subj_map)
+            records = run_7b(subj_map, model=model)
     else:
         print("\n[准备模式] 加 --run 才会真正调用模型。")
 

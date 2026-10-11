@@ -402,9 +402,17 @@ def main():
                                       '"solution": "字符串"'))
     ok, why = ai.validate("error_analysis", bad_sol)
     check("solution 必须是字符串数组", ok is False, why)
+    # label 与 code 不匹配：放行，但由 normalize 以 code 覆盖 label。
+    # （2026-10-11 改：原先判死，导致 7B 两题正确结果被整条丢弃）
     mismatch = json.loads(GOOD.replace("计算失误", "方法缺失"))
     ok, why = ai.validate("error_analysis", mismatch)
-    check("error_type_label 与 code 不匹配被拒", ok is False, why)
+    check("label 与 code 不匹配：放行（不再整条丢弃）", ok is True, why)
+    fixed = ai.normalize_error_analysis(mismatch)
+    check("label 被 normalize 以 code 为准修正",
+          fixed["error_type_label"] == ai.ERROR_TYPE_CODES[fixed["error_type"]],
+          f"{fixed['error_type_label']} vs {fixed['error_type']}")
+    check("修正不改动 error_type 本身",
+          fixed["error_type"] == mismatch["error_type"], fixed["error_type"])
     ok, why = ai.validate("error_analysis", json.loads(GOOD))
     check("合法 v2 数据通过", ok is True, why)
 
