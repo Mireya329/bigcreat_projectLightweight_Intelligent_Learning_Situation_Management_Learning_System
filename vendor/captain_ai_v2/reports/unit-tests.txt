@@ -1,0 +1,46 @@
+test_health (test_captain.HTTPTests.test_health) ... ok
+test_http_round_trip (test_captain.HTTPTests.test_http_round_trip) ... ok
+test_malformed_json (test_captain.HTTPTests.test_malformed_json) ... ok
+test_alias (test_captain.ProtocolTests.test_alias) ... ok
+test_confidence_boundary (test_captain.ProtocolTests.test_confidence_boundary) ... ok
+test_cpu_option (test_captain.ProtocolTests.test_cpu_option) ... ok
+test_duplicate_json (test_captain.ProtocolTests.test_duplicate_json) ... ok
+test_error_after_invalid_output_keeps_evidence (test_captain.ProtocolTests.test_error_after_invalid_output_keeps_evidence) ... ok
+test_essay_correction_must_exist (test_captain.ProtocolTests.test_essay_correction_must_exist) ... ok
+test_missing_field (test_captain.ProtocolTests.test_missing_field) ... ok
+test_missing_school_data (test_captain.ProtocolTests.test_missing_school_data) ... ok
+test_missing_stats (test_captain.ProtocolTests.test_missing_stats) ... ok
+test_model_offline (test_captain.ProtocolTests.test_model_offline) ... ok
+test_no_quiz_feedback_before_answer (test_captain.ProtocolTests.test_no_quiz_feedback_before_answer) ... ok
+test_one_retry_recovers (test_captain.ProtocolTests.test_one_retry_recovers) ... ok
+test_plan_budget_and_days (test_captain.ProtocolTests.test_plan_budget_and_days) ... ok
+test_plan_requires_measurable_check (test_captain.ProtocolTests.test_plan_requires_measurable_check) ... ok
+test_request_validation_no_model_call (test_captain.ProtocolTests.test_request_validation_no_model_call) ... ok
+test_schema_rejections (test_captain.ProtocolTests.test_schema_rejections) ... ok
+test_timeout_does_not_retry (test_captain.ProtocolTests.test_timeout_does_not_retry) ... ok
+test_two_failures_keep_raw_no_content (test_captain.ProtocolTests.test_two_failures_keep_raw_no_content) ... ok
+test_valid_envelope_and_json_mode (test_captain.ProtocolTests.test_valid_envelope_and_json_mode) ... ok
+test_actual_summary_no_fabricated_point_accuracy (test_round2.Round2Tests.test_actual_summary_no_fabricated_point_accuracy) ... ok
+test_bad_counts_rejected (test_round2.Round2Tests.test_bad_counts_rejected) ... ok
+test_conflicting_answer_rejected (test_round2.Round2Tests.test_conflicting_answer_rejected) ... ok
+test_foreign_subject_points_not_diagnosed (test_round2.Round2Tests.test_foreign_subject_points_not_diagnosed) ... ok
+test_invalid_response_schema_is_rejected (test_round2.Round2Tests.test_invalid_response_schema_is_rejected) ... ok
+test_known_point_counts_and_subject_scope (test_round2.Round2Tests.test_known_point_counts_and_subject_scope) ... ok
+test_live_schema_endpoint_matches_file_contract (test_round2.Round2Tests.test_live_schema_endpoint_matches_file_contract) ... ok
+test_missing_answer_confidence_forced_zero (test_round2.Round2Tests.test_missing_answer_confidence_forced_zero) ... ok
+test_object_unknown_field_rejected (test_round2.Round2Tests.test_object_unknown_field_rejected) ... ok
+test_pending_legacy_label_excluded (test_round2.Round2Tests.test_pending_legacy_label_excluded) ... ok
+test_plan_clamp_and_null_defaults (test_round2.Round2Tests.test_plan_clamp_and_null_defaults) ... ok
+test_plan_invalid_type_is_not_silently_defaulted (test_round2.Round2Tests.test_plan_invalid_type_is_not_silently_defaulted) ... ok
+test_politics_object_answer_is_used (test_round2.Round2Tests.test_politics_object_answer_is_used) ... ok
+test_protocol_metadata_success_and_failures (test_round2.Round2Tests.test_protocol_metadata_success_and_failures) ... ok
+test_raw_string_and_boolean_code_rejected (test_round2.Round2Tests.test_raw_string_and_boolean_code_rejected) ... ok
+test_real_http_stub_boundary_one_request_for_code2 (test_round2.Round2Tests.test_real_http_stub_boundary_one_request_for_code2) ... ok
+test_response_validation_does_not_relabel_protocol (test_round2.Round2Tests.test_response_validation_does_not_relabel_protocol) ... ok
+test_school_and_judge_do_not_call_model (test_round2.Round2Tests.test_school_and_judge_do_not_call_model) ... ok
+test_subject_code_normalized (test_round2.Round2Tests.test_subject_code_normalized) ... ok
+
+----------------------------------------------------------------------
+Ran 41 tests in 1.560s
+
+OK

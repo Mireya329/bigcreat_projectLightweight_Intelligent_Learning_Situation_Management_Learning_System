@@ -1,0 +1,7 @@
+{
+  "version": "2026-10-09-captain-gateway-v2",
+  "schema_version": "2026-10-09-captain-schema-v2",
+  "code2": "请求字段错误；修改请求后才能重新提交，不自动重试",
+  "retry_owner": "gateway",
+  "max_output_retries": 1
+}

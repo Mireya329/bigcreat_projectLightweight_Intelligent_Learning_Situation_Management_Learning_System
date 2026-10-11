@@ -1,0 +1,163 @@
+[
+  {
+    "name": "错题解析",
+    "request": {
+      "scene": "error_analysis",
+      "subject": "math",
+      "input": {
+        "question": "解方程2x+3=7",
+        "student_answer": "2x=7+3=10，所以x=5",
+        "reference_answer": "x=2"
+      },
+      "user_context": {}
+    }
+  },
+  {
+    "name": "数学指导",
+    "request": {
+      "scene": "qa",
+      "subject": "math",
+      "input": "求f(x)=x^2在x=3处的导数，给出简短步骤。",
+      "user_context": {
+        "task": "math_guidance"
+      }
+    }
+  },
+  {
+    "name": "政治抽查",
+    "request": {
+      "scene": "qa",
+      "subject": "politics",
+      "input": {
+        "question": "围绕实践与认识的关系出一道背诵抽查题。",
+        "student_answer": ""
+      },
+      "user_context": {
+        "task": "politics_quiz"
+      }
+    }
+  },
+  {
+    "name": "作文润色",
+    "request": {
+      "scene": "essay_review",
+      "subject": "cet4",
+      "input": "I goes to library every day. Reading books help me learn new things.",
+      "user_context": {}
+    }
+  },
+  {
+    "name": "实际学情缺少考点分母",
+    "request": {
+      "scene": "weak_diagnosis",
+      "subject": "math",
+      "input": "根据这次练习诊断薄弱点。",
+      "user_context": {
+        "summary": {
+          "total_errors": 11,
+          "mastered_errors": 0,
+          "practice": {
+            "total": 704,
+            "correct": 445
+          },
+          "accuracy": 63.2,
+          "period": {
+            "from": "2026-09-15",
+            "to": "2026-09-21"
+          },
+          "subjects": [
+            {
+              "code": "POSTGRAD_MATH",
+              "name": "考研数学",
+              "error_count": 4
+            },
+            {
+              "code": "CET4",
+              "name": "英语四级",
+              "error_count": 0
+            }
+          ],
+          "points": [
+            {
+              "name": "偏导数与高阶偏导数",
+              "subject_code": "POSTGRAD_MATH",
+              "error_count": 11,
+              "correct_count": null,
+              "note": "正确题量暂无数据源（练习记录未记考点）"
+            }
+          ],
+          "confirmed_error_types": {},
+          "pending_review": 7,
+          "available_minutes_per_day": null,
+          "plan_days": null
+        }
+      }
+    }
+  },
+  {
+    "name": "复习规划",
+    "request": {
+      "scene": "qa",
+      "subject": "math",
+      "input": "重点复习导数，安排三天计划。",
+      "user_context": {
+        "task": "study_plan",
+        "available_minutes_per_day": 30,
+        "plan_days": 3,
+        "summary": {
+          "weak_points": [
+            "导数"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "政治已有作答",
+    "request": {
+      "scene": "qa",
+      "subject": "politics",
+      "input": {
+        "question": "简述实践与认识的关系",
+        "student_answer": "实践是认识的来源。"
+      },
+      "user_context": {
+        "task": "politics_quiz"
+      }
+    }
+  },
+  {
+    "name": "缺少学生作答",
+    "request": {
+      "scene": "error_analysis",
+      "subject": "math",
+      "input": {
+        "question": "解方程2x+3=7",
+        "student_answer": "（OCR 未识别出手写作答）"
+      },
+      "user_context": {}
+    }
+  },
+  {
+    "name": "请求字段错误",
+    "expected_code": 2,
+    "request": {
+      "scene": "qa",
+      "subject": "math",
+      "input": "测试",
+      "user_context": {
+        "task": "unknown"
+      }
+    }
+  },
+  {
+    "name": "择校暂不开放",
+    "expected_code": 1,
+    "request": {
+      "scene": "school_recommend",
+      "subject": "math",
+      "input": "暂不提供院校推荐",
+      "user_context": {}
+    }
+  }
+]

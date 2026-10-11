@@ -1,0 +1,2 @@
+NAME                          ID              SIZE      PROCESSOR    CONTEXT    UNTIL                   
+qwen2.5:7b-instruct-q4_K_M    845dbda0ea48    5.0 GB    100% GPU     8192       About a minute from now    

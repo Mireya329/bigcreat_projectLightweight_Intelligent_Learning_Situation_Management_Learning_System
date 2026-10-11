@@ -113,29 +113,61 @@ AUTO_COMMIT_CLASSIFICATION = False
 # ============================================================
 # 协议常量
 # ============================================================
-PROTOCOL_VERSION = "2026-09-21-captain-v1"
+# 2026-10-09 起用队长交付包的 v2 正式版本，不再用 2026-09-21-captain-v1
+# 去描述已经改变的行为（队长《01_第二轮回复与字段变更》第一节）。
+#
+# 权威来源是包里的 protocol.json / schemas.json；包不在时退回下面的常量。
+# ⚠️ 反过来不成立：网关发回来的 protocol 对象**原样透传**，
+#    不许改写成旧版本或临时后缀版本（队长原话："不重新写成旧版本"）。
+_BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))          # src/backend
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(_BACKEND_DIR))     # 项目根
+CAPTAIN_PKG_DIR = os.path.join(_PROJECT_ROOT, "vendor", "captain_ai_v2")
 
-# ⚠️ code 语义分裂（队长 2026-09-27 回复第四节第 2 条，必须对齐）
-# 原协议：     code=2 表示"模型输出不合法"，由**后端**重试 1 次
-# 队长网关：   网关内部已重试，仍失败后对外只给 code=1；
-#              **code=2 改用于"请求字段错误"**，重试没有意义
-# 同一个版本名不能对应两套 code 语义，所以这里显式记录当前生效的是哪一套。
+
+def _load_pkg_json(name: str, default):
+    """读交付包里的 JSON。读不到就退回默认值，不让异常打断调用链。"""
+    try:
+        with open(os.path.join(CAPTAIN_PKG_DIR, name), "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return default
+
+
+PROTOCOL_JSON = _load_pkg_json("protocol.json", {})
+SCHEMAS_JSON = _load_pkg_json("schemas.json", {})
+
+PROTOCOL_VERSION = str(PROTOCOL_JSON.get("version")
+                       or "2026-10-09-captain-gateway-v2")
+SCHEMA_VERSION = str(PROTOCOL_JSON.get("schema_version")
+                     or "2026-10-09-captain-schema-v2")
+MAX_OUTPUT_RETRIES = int(PROTOCOL_JSON.get("max_output_retries", 1) or 1)
+
+# ⚠️ code=2 语义分裂（队长 2026-09-27 第四节第 2 条 + 2026-10-09 v2 确认）
+# 网关分支：  code=2 = 请求字段错误。修正字段后发的是**新请求**，
+#             不能让程序原样重复错误请求 → 不自动重试。
+# 本地分支：  没有网关替我重试，保留原有的"输出不合法重试 1 次"。
 CODE_SEMANTICS = {
-    # 直连 Ollama 分支：沿用旧语义
+    # 直连 Ollama 分支
     "local": {
         "version": PROTOCOL_VERSION,
+        "schema_version": SCHEMA_VERSION,
         "0": "成功",
         "1": "模型异常 / 重试后仍降级",
-        "2": "模型输出格式不合法（后端重试 1 次）",
-        "retry_owner": "backend",      # 重试归属
+        "2": "模型输出格式不合法（后端重试 %d 次）" % MAX_RETRY,
+        "code2": "模型输出格式不合法（后端重试 %d 次）" % MAX_RETRY,
+        "retry_owner": "backend",
+        "max_output_retries": MAX_RETRY,
     },
-    # 网关分支：新语义
+    # 网关分支：字段与包内 protocol.json 一致
     "gateway": {
-        "version": PROTOCOL_VERSION + "+gateway-code2-request-error",
+        "version": PROTOCOL_VERSION,
+        "schema_version": SCHEMA_VERSION,
         "0": "成功",
         "1": "模型侧最终失败（网关已内部重试）",
-        "2": "请求字段错误——需修正请求，重试无意义",
+        "2": "请求字段错误；修改请求后才能重新提交，不自动重试",
+        "code2": "请求字段错误；修改请求后才能重新提交，不自动重试",
         "retry_owner": "gateway",
+        "max_output_retries": MAX_OUTPUT_RETRIES,
     },
 }
 
@@ -273,24 +305,32 @@ class AIResponse:
     model: str = ""
     error: Optional[str] = None         # 失败原因
     retries: int = 0                    # 实际重试次数（0=一次通过）
+    # 网关发回来的 protocol 对象，原样透传。
+    # 队长 v2（2026-10-09）："后端保留网关发来的版本，不重新写成旧版本
+    # 或临时后缀版本"。没有网关 protocol 时（本地分支）才用我侧的语义表。
+    protocol: Optional[dict] = None
 
     def to_envelope(self) -> dict:
-        """队长协议返回体：{code, scene, data, raw, model, elapsed_ms}
-
-        额外带 `protocol` 字段说明当前 code 走哪套语义——因为队长网关把
-        code=2 改成了"请求字段错误"，不加这个字段，同一份信封会被误读。
-        """
+        """队长 v2 返回体：{code, scene, data, raw, model, elapsed_ms, protocol}"""
         env = {
             "code": self.code,
             "scene": self.scene,
             "data": self.data,
-            "raw": self.raw,
+            "raw": self.raw if self.raw is not None else {},
             "model": self.model,
             "elapsed_ms": self.elapsed_ms,
         }
-        sem = code_semantics()
-        env["protocol"] = {"version": sem["version"], "code2": sem["2"],
-                           "retry_owner": sem["retry_owner"]}
+        if isinstance(self.protocol, dict) and self.protocol:
+            env["protocol"] = self.protocol          # 网关原样，绝不改写
+        else:
+            sem = code_semantics()
+            env["protocol"] = {
+                "version": sem["version"],
+                "schema_version": sem["schema_version"],
+                "code2": sem["code2"],
+                "retry_owner": sem["retry_owner"],
+                "max_output_retries": sem["max_output_retries"],
+            }
         return env
 
     @property
@@ -315,29 +355,33 @@ class SceneSpec:
 
 
 # 主场景（按 scene 查）
+# 2026-10-09 起字段以队长交付包 schemas.json 为准（不再是我侧提案）：
+#   error_analysis  新增 answer、suggestions；solution 改数组；去掉 similar_question
+#   weak_diagnosis  advice → suggestions；新增 summary
+#   essay_review    corrected → revised_essay；issues → corrections(对象数组)
 SCENE_SPECS: dict[str, SceneSpec] = {
     "error_analysis": SceneSpec(
-        required=("solution", "error_type", "error_type_label",
-                  "error_confidence", "error_reason", "knowledge_points",
-                  "similar_question"),
+        required=("answer", "solution", "knowledge_points", "error_type",
+                  "error_type_label", "error_confidence", "error_reason",
+                  "suggestions"),
     ),
     "qa": SceneSpec(
-        required=("answer",),
-        optional=("related_points",),
+        required=("answer", "steps", "knowledge_points"),
     ),
     "weak_diagnosis": SceneSpec(
-        required=("weak_points", "advice"),
-        optional=("priority",),
+        required=("summary", "weak_points", "suggestions"),
     ),
+    # 择校：队长 v2 明确"当前只返回失败信封"，所以三档不再必填，
+    # code=1 时也不去检查它们（见 validate()）
     "school_recommend": SceneSpec(
-        required=("reach", "match", "safety"),
-        optional=("note",),
+        required=(),
+        optional=("reach", "match", "safety", "note"),
     ),
     "essay_review": SceneSpec(
-        required=("corrected", "issues"),
-        optional=("score", "comments"),
+        required=("overall_feedback", "corrections", "revised_essay",
+                  "suggestions"),
     ),
-    "judge_fragment": SceneSpec(
+    "judge_fragment": SceneSpec(     # 本侧扩展，队长同意保持独立、不进主协议
         required=("choice",),
         optional=("guessed_no", "stem", "qtype", "reason"),
     ),
@@ -347,20 +391,18 @@ SCENE_SPECS: dict[str, SceneSpec] = {
 # （队长 2026-09-27 回复：数学指导 math_guidance / 政治抽查 politics_quiz /
 #   复习规划 study_plan 都用 scene=qa，靠 user_context.task 区分）
 #
-# ⚠️ 以下字段是**我侧提案**，队长交付包的 schemas.json 尚未拿到核对。
-#    联调时以队长 schemas.json 为准，不一致就改这里，不要改 scene 名。
+# 2026-10-09：已按队长 schemas.json 对齐，不再是提案。
+#   politics_quiz 不再要 verdict；参考答案用 reference_answer；
+#   study_plan 要 summary + plan（项为 day/task/minutes/success_check）
 QA_TASK_SPECS: dict[str, SceneSpec] = {
     "math_guidance": SceneSpec(
-        required=("answer", "steps"),
-        optional=("related_points", "pitfalls"),
+        required=("answer", "steps", "knowledge_points"),
     ),
     "politics_quiz": SceneSpec(          # 政治抽查：输入侧用 student_answer
-        required=("verdict",),
-        optional=("answer", "expected_points", "missed_points", "comment"),
+        required=("question", "reference_answer", "key_points", "feedback"),
     ),
     "study_plan": SceneSpec(
-        required=("plan",),
-        optional=("daily_focus", "note"),
+        required=("summary", "plan"),
     ),
 }
 
@@ -392,36 +434,78 @@ def spec_for(scene: str, task: Optional[str] = None) -> SceneSpec:
     return SCENE_SPECS.get(scene, SceneSpec(required=()))
 
 
-def normalize_user_context(uc: Optional[dict]) -> dict:
-    """规整 user_context：补默认值、夹取越界值、记下被修正的项。
+# 上一次 normalize_user_context 的调整记录（给日志/排障用，不进请求体）
+LAST_USER_CONTEXT_NOTES: dict = {}
 
-    队长给定范围：plan_days 1~7（默认 3）、available_minutes_per_day
-    1~480（默认 60）。越界不报错而是夹取——这是给模型用的提示，不是业务校验，
-    没必要因为填错一个数就让整次请求失败。
+
+def _coerce_plan_int(value: Any, lo: int, hi: int, default: int,
+                     name: str, notes: dict) -> int:
+    """规划参数的取值规则——队长 v2 第二节，后端与网关必须用同一套：
+
+        None / 缺失          → 用默认值
+        明确整数             → 夹取到 [lo, hi]
+        整数形式的字符串     → 转换后夹取（"60" 可以）
+        布尔 / 小数 / 数组 / 无效字符串 → **拒绝该值**，改用默认
+
+    "类型错误拒绝"而不是"夹取"，是为了不把 true、60.5 之类悄悄变成 60 或 480；
+    被拒绝和被夹取都记进 notes，保证**生效值可见**。
     """
+    if value is None:
+        return default
+
+    def reject(why):
+        notes[name] = {"给定值": value, "生效值": default, "原因": why}
+        return default
+
+    if isinstance(value, bool):
+        return reject("布尔值不是有效数字")
+    if isinstance(value, int):
+        v = value
+    elif isinstance(value, float):
+        return reject("小数不是有效整数")
+    elif isinstance(value, str):
+        s = value.strip()
+        if re.fullmatch(r"[+-]?\d+", s):
+            v = int(s)
+        else:
+            return reject("字符串不是整数形式")
+    else:
+        return reject(f"类型 {type(value).__name__} 不是有效数字")
+
+    clamped = min(max(v, lo), hi)
+    if clamped != v:
+        notes[name] = {"给定值": v, "生效值": clamped, "原因": "超出范围已夹取"}
+    return clamped
+
+
+def normalize_user_context(uc: Optional[dict]) -> dict:
+    """规整 user_context：补默认值、夹取越界值、拒绝类型错误的值。
+
+    队长 v2 给定范围：plan_days 1~7（默认 3）、available_minutes_per_day
+    1~480（默认 60）。生效值写回 uc（可见），调整详情记进
+    LAST_USER_CONTEXT_NOTES 并打印一行，不做静默变更。
+    """
+    global LAST_USER_CONTEXT_NOTES
+    notes: dict = {}
     uc = dict(uc or {})
     if "task" in uc and uc["task"] not in QA_TASK_SPECS:
-        # 未知 task 就当没有，走 qa 默认契约；不静默丢弃，记进 adjusted
+        # 未知 task 就当没有，走 qa 默认契约；不静默丢弃，记进 notes
+        notes["task"] = {"给定值": uc["task"], "生效值": None,
+                         "原因": "未知 task，按 qa 默认契约处理"}
         uc["_unknown_task"] = uc["task"]
         uc["task"] = None
 
-    lo, hi = PLAN_DAYS_RANGE
-    d = uc.get("plan_days")
-    if d is not None:
-        try:
-            d = int(d)
-            uc["plan_days"] = min(max(d, lo), hi)
-        except (TypeError, ValueError):
-            uc["plan_days"] = PLAN_DAYS_DEFAULT
+    uc["plan_days"] = _coerce_plan_int(
+        uc.get("plan_days"), PLAN_DAYS_RANGE[0], PLAN_DAYS_RANGE[1],
+        PLAN_DAYS_DEFAULT, "plan_days", notes)
+    uc["available_minutes_per_day"] = _coerce_plan_int(
+        uc.get("available_minutes_per_day"), MINUTES_PER_DAY_RANGE[0],
+        MINUTES_PER_DAY_RANGE[1], MINUTES_PER_DAY_DEFAULT,
+        "available_minutes_per_day", notes)
 
-    lo, hi = MINUTES_PER_DAY_RANGE
-    m = uc.get("available_minutes_per_day")
-    if m is not None:
-        try:
-            m = int(m)
-            uc["available_minutes_per_day"] = min(max(m, lo), hi)
-        except (TypeError, ValueError):
-            uc["available_minutes_per_day"] = MINUTES_PER_DAY_DEFAULT
+    LAST_USER_CONTEXT_NOTES = notes
+    if notes:
+        print(f"[ai_interface] user_context 已调整：{json.dumps(notes, ensure_ascii=False)}")
     return uc
 
 
@@ -506,21 +590,22 @@ PROMPT_TEMPLATES: dict[str, str] = {
 QA_TASK_FIELD_HINTS: dict[str, str] = {
     "math_guidance": (
         '- "answer": 字符串，最终答案\n'
-        '- "steps": 字符串数组，分步骤的推导过程\n'
-        '- "related_points": 字符串数组，相关知识点（可选）\n'
-        '- "pitfalls": 字符串数组，易错点（可选）'
+        '- "steps": 字符串数组，分步骤的推导过程（1~8 条）\n'
+        '- "knowledge_points": 字符串数组，关联知识点（1~8 个）\n'
+        '只输出这 3 个字段'
     ),
     "politics_quiz": (
-        '- "verdict": 字符串，对学生作答的判定（如"基本正确/遗漏要点/表述错误"）\n'
-        '- "answer": 字符串，参考答案（可选）\n'
-        '- "expected_points": 字符串数组，应踩到的分点（可选）\n'
-        '- "missed_points": 字符串数组，学生漏掉的分点（可选）\n'
-        '- "comment": 字符串，一句话点评（可选）'
+        '- "question": 字符串，题目\n'
+        '- "reference_answer": 字符串，参考答案\n'
+        '- "key_points": 字符串数组，应踩到的分点（1~8 个）\n'
+        '- "feedback": 字符串，针对学生作答的反馈（未作答要说明"尚未作答"）\n'
+        '只输出这 4 个字段'
     ),
     "study_plan": (
-        '- "plan": 字符串数组，按天给出复习安排\n'
-        '- "daily_focus": 字符串，每日重点（可选）\n'
-        '- "note": 字符串，备注（可选）'
+        '- "summary": 字符串，一句话说明这份计划的安排思路\n'
+        '- "plan": 对象数组，每天一项，含 day（整数 1~7）、task（任务）、'
+        'minutes（分钟 1~480）、success_check（完成标准）\n'
+        '只输出这 2 个字段，天数必须等于要求的天数'
     ),
 }
 
@@ -532,25 +617,34 @@ def field_hints_for(scene: str, task: Optional[str] = None) -> str:
     return FIELD_HINTS.get(scene, "")
 
 
+# 2026-10-09：字段说明按队长 schemas.json 重写，模型才会按要求输出
+# （additionalProperties=false，多给字段一律判不合法）
 FIELD_HINTS: dict[str, str] = {
     "error_analysis": (
-        '- "solution": 字符串，正确解题思路\n'
+        '- "answer": 字符串，正确答案\n'
+        '- "solution": 字符串数组，解题思路（1~8 条，分步骤写）\n'
+        '- "knowledge_points": 字符串数组，关联知识点（1~8 个）\n'
         '- "error_type": 只能是 concept_misunderstanding / calculation_error / '
         'misread_question / method_gap 之一\n'
-        '- "error_type_label": 中文标签（概念理解错误/计算失误/审题偏差/方法缺失）\n'
+        '- "error_type_label": 与上面 code 对应的中文标签之一：'
+        '概念不清 / 计算失误 / 审题偏差 / 方法缺失\n'
         '- "error_confidence": 0 到 1 之间的小数，表示你对这个判定的把握\n'
         '- "error_reason": 一句话说明判定依据\n'
-        '- "knowledge_points": 字符串数组，关联知识点\n'
-        '- "similar_question": 字符串，一道同类变式题'
+        '- "suggestions": 字符串数组，改进建议（1~8 条）\n'
+        '只输出这 8 个字段，不要多加任何字段'
     ),
     "qa": (
         '- "answer": 字符串，回答正文\n'
-        '- "related_points": 字符串数组，相关知识点（可选）'
+        '- "steps": 字符串数组，推导或讲解步骤（1~8 条）\n'
+        '- "knowledge_points": 字符串数组，关联知识点（1~8 个）\n'
+        '只输出这 3 个字段'
     ),
     "weak_diagnosis": (
-        '- "weak_points": 字符串数组，薄弱知识点\n'
-        '- "advice": 字符串，复习建议\n'
-        '- "priority": 字符串数组，按优先级排序的知识点（可选）'
+        '- "summary": 字符串，一句话诊断结论\n'
+        '- "weak_points": 对象数组，每项含 name（薄弱点名称）、'
+        'evidence（依据）、advice（建议）\n'
+        '- "suggestions": 字符串数组，复习建议（1~8 条）\n'
+        '只输出这 3 个字段'
     ),
     "school_recommend": (
         '- "reach": 字符串数组，冲档院校\n'
@@ -559,10 +653,12 @@ FIELD_HINTS: dict[str, str] = {
         '- "note": 字符串，说明（可选）'
     ),
     "essay_review": (
-        '- "corrected": 字符串，润色后的全文\n'
-        '- "issues": 字符串数组，逐条指出问题\n'
-        '- "score": 数字，评分（可选）\n'
-        '- "comments": 字符串，总评（可选）'
+        '- "overall_feedback": 字符串，总体评价\n'
+        '- "corrections": 对象数组，每项含 original（原文）、'
+        'corrected（改后）、reason（原因）\n'
+        '- "revised_essay": 字符串，润色后的全文\n'
+        '- "suggestions": 字符串数组，改进建议（1~8 条）\n'
+        '只输出这 4 个字段'
     ),
     "judge_fragment": (
         '- "choice": 只能是 "A" / "B" / "C"\n'
@@ -576,27 +672,38 @@ FIELD_HINTS: dict[str, str] = {
 # 占位数据（MOCK_MODE 或 Ollama 离线时使用）
 MOCK_DATA: dict[str, dict] = {
     "error_analysis": {
-        "solution": "[占位] 第 2 阶段接入 Ollama 后返回真实解析。",
+        "answer": "[占位] 答案",
+        "solution": ["[占位] 第 2 阶段接入 Ollama 后返回真实解析。"],
         "error_type": "method_gap",
         "error_type_label": "方法缺失",
         "error_confidence": 0.0,
         "error_reason": "占位数据，非真实判定",
         "knowledge_points": [],
-        "similar_question": "",
+        "suggestions": ["[占位] 建议"],
     },
-    "qa": {"answer": "[占位] 知识点问答结果。", "related_points": []},
-    "weak_diagnosis": {"weak_points": [], "advice": "[占位] 薄弱点诊断结果。"},
+    "qa": {"answer": "[占位] 知识点问答结果。", "steps": ["[占位] 步骤"],
+           "knowledge_points": []},
+    "weak_diagnosis": {"summary": "[占位] 薄弱点诊断结果。",
+                       "weak_points": [], "suggestions": ["[占位] 建议"]},
     "school_recommend": {"reach": [], "match": [], "safety": [], "note": "[占位] 院校库未接入。"},
-    "essay_review": {"corrected": "[占位] 作文批改结果。", "issues": []},
+    "essay_review": {"overall_feedback": "[占位] 总体评价。",
+                     "corrections": [], "revised_essay": "[占位] 作文批改结果。",
+                     "suggestions": ["[占位] 建议"]},
     "judge_fragment": {"choice": "C", "reason": "占位数据"},
 }
 
 # 旧调用方可能直接读 MOCK_OUTPUTS，保留一个兼容视图
 # qa 三个子功能的占位数据（离线/MOCK 时用，字段与 QA_TASK_SPECS 对齐）
 QA_MOCK_DATA: dict[str, dict] = {
-    "math_guidance": {"answer": "[占位] 数学指导", "steps": ["[占位] 步骤"]},
-    "politics_quiz": {"verdict": "[占位] 判定"},
-    "study_plan": {"plan": ["[占位] 第 1 天安排"]},
+    "math_guidance": {"answer": "[占位] 数学指导", "steps": ["[占位] 步骤"],
+                      "knowledge_points": []},
+    "politics_quiz": {"question": "[占位] 题目",
+                      "reference_answer": "[占位] 参考答案",
+                      "key_points": ["[占位] 踩分点"],
+                      "feedback": "[占位] 反馈"},
+    "study_plan": {"summary": "[占位] 计划说明",
+                   "plan": [{"day": 1, "task": "[占位] 第 1 天安排",
+                             "minutes": 60, "success_check": "[占位] 完成标准"}]},
 }
 
 MOCK_OUTPUTS: dict[str, str] = {k: "[占位] " + k for k in MOCK_DATA}
@@ -716,6 +823,93 @@ def extract_json(text: str) -> tuple[Optional[dict], str]:
     return None, text
 
 
+def schema_key_for(scene: str, task: Optional[str] = None) -> str:
+    """scene(+task) → 队长 schemas.json 里的键名。
+
+    qa 的三个子任务里，math_guidance 与不传 task 时都用 "qa"；
+    politics_quiz / study_plan 在 schemas.json 里是独立键。
+    """
+    if scene == "qa":
+        return task if task in ("politics_quiz", "study_plan") else "qa"
+    return scene
+
+
+def _type_ok(value: Any, want: str) -> bool:
+    if want == "object":
+        return isinstance(value, dict)
+    if want == "array":
+        return isinstance(value, list)
+    if want == "string":
+        return isinstance(value, str)
+    if want == "integer":
+        # 布尔值在 Python 里是 int 的子类，但协议里不该当成数字
+        return isinstance(value, int) and not isinstance(value, bool)
+    if want == "number":
+        return (isinstance(value, (int, float))
+                and not isinstance(value, bool))
+    return True
+
+
+def _validate_schema(data: Any, schema: dict, path: str = "") -> tuple[bool, str]:
+    """轻量 JSON Schema 校验（够用即可，不引第三方依赖）。
+
+    支持队长 schemas.json 用到的全部关键字：type / required / properties /
+    additionalProperties / enum / minimum / maximum / minLength / minItems /
+    maxItems / items（可嵌套对象）。
+    """
+    want = schema.get("type")
+    if want and not _type_ok(data, want):
+        return False, f"{path or 'data'} 类型应为 {want}，实际是 {type(data).__name__}"
+
+    if want == "object" or (want is None and isinstance(data, dict)):
+        if not isinstance(data, dict):
+            return True, ""
+        for key in schema.get("required", []):
+            if key not in data:
+                return False, f"{path or 'data'} 缺少必填字段: {key}"
+        props = schema.get("properties", {})
+        if schema.get("additionalProperties") is False:
+            extra = [k for k in data if k not in props]
+            if extra:
+                return False, f"{path or 'data'} 出现未定义字段: {extra}"
+        for key, sub in props.items():
+            if key in data:
+                ok, why = _validate_schema(data[key], sub,
+                                           f"{path}.{key}" if path else key)
+                if not ok:
+                    return False, why
+
+    if isinstance(data, list):
+        if "minItems" in schema and len(data) < schema["minItems"]:
+            return False, f"{path or 'data'} 至少 {schema['minItems']} 项，实际 {len(data)}"
+        if "maxItems" in schema and len(data) > schema["maxItems"]:
+            return False, f"{path or 'data'} 最多 {schema['maxItems']} 项，实际 {len(data)}"
+        item_schema = schema.get("items")
+        if item_schema:
+            for i, item in enumerate(data):
+                ok, why = _validate_schema(item, item_schema,
+                                           f"{path}[{i}]" if path else f"[{i}]")
+                if not ok:
+                    return False, why
+
+    if isinstance(data, str):
+        if "minLength" in schema and len(data.strip()) < schema["minLength"]:
+            return False, f"{path or 'data'} 不能为空字符串"
+        if "enum" in schema and data not in schema["enum"]:
+            return False, f"{path or 'data'} 取值不在枚举内: {data!r}"
+
+    if isinstance(data, (int, float)) and not isinstance(data, bool):
+        if "minimum" in schema and data < schema["minimum"]:
+            return False, f"{path or 'data'} 小于下限 {schema['minimum']}: {data}"
+        if "maximum" in schema and data > schema["maximum"]:
+            return False, f"{path or 'data'} 超过上限 {schema['maximum']}: {data}"
+
+    if "enum" in schema and want != "string" and data not in schema["enum"]:
+        return False, f"{path or 'data'} 取值不在枚举内: {data!r}"
+
+    return True, ""
+
+
 def validate(scene: str, data: Any, task: Optional[str] = None) -> tuple[bool, str]:
     """校验 data 是否满足场景契约。返回 (是否通过, 不通过的原因)。
 
@@ -724,30 +918,39 @@ def validate(scene: str, data: Any, task: Optional[str] = None) -> tuple[bool, s
     """
     if scene not in SCENE_SPECS:
         return False, f"未知 scene: {scene}"
-    spec = spec_for(scene, task)
 
     if not isinstance(data, dict):
         return False, "data 不是 JSON 对象"
 
-    missing = [k for k in spec.required
-               if k not in data or data[k] in (None, "", [])]
-    # similar_question 允许为空串（题目残缺时模型本来就该留空）
-    missing = [k for k in missing if k != "similar_question"]
-    if missing:
-        return False, f"缺少或空字段: {missing}"
+    # 优先用队长 schemas.json 做结构与类型校验（含 additionalProperties=false）
+    schema = SCHEMAS_JSON.get(schema_key_for(scene, task))
+    if schema:
+        ok, why = _validate_schema(data, schema)
+        if not ok:
+            return False, why
+    else:
+        # 包里没有 schema 的场景（judge_fragment / school_recommend）退回必填校验
+        spec = spec_for(scene, task)
+        missing = [k for k in spec.required
+                   if k not in data or data[k] in (None, "", [])]
+        if missing:
+            return False, f"缺少或空字段: {missing}"
 
     if scene == "error_analysis":
         et = str(data.get("error_type", "")).strip().lower()
         if et not in ERROR_TYPE_CODES:
             return False, f"error_type 不在四个 code 内: {data.get('error_type')!r}"
+        # label 必须与 code 一一对应（backend_contract.validate_response 同样校验）
+        if data.get("error_type_label") != ERROR_TYPE_CODES.get(et):
+            return False, (f"error_type_label 与 code 不匹配: "
+                           f"{data.get('error_type_label')!r} ≠ "
+                           f"{ERROR_TYPE_CODES.get(et)!r}")
         try:
             conf = float(data.get("error_confidence"))
         except (TypeError, ValueError):
             return False, f"error_confidence 不是数值: {data.get('error_confidence')!r}"
         if not 0.0 <= conf <= 1.0:
             return False, f"error_confidence 超出 0~1: {conf}"
-        if not isinstance(data.get("knowledge_points"), list):
-            return False, "knowledge_points 必须是数组"
         # 模型若判了"概念理解错误"却把四类全写进理由里，判为背书
         reason = str(data.get("error_reason", ""))
         hits = sum(1 for w in ("概念不清", "计算失误", "审题偏差", "方法缺失")
@@ -794,14 +997,19 @@ def render_content(scene: str, data: dict, task: Optional[str] = None) -> str:
     if scene == "error_analysis":
         kp = data.get("knowledge_points") or []
         kp_s = "、".join(str(x) for x in kp) if kp else "（未给出）"
-        sq = data.get("similar_question") or "（未给出）"
+        sol = data.get("solution")          # v2：字符串数组
+        sol_s = ("\n".join(f"  {n}. {x}" for n, x in enumerate(sol, 1))
+                 if isinstance(sol, list) else str(sol or "（未给出）"))
+        sug = data.get("suggestions") or []
+        sug_s = "\n".join(f"  - {x}" for x in sug) if sug else "  （未给出）"
         return (
-            f"【正确解题思路】\n{data.get('solution', '')}\n\n"
+            f"【正确答案】{data.get('answer', '（未给出）')}\n\n"
+            f"【解题思路】\n{sol_s}\n\n"
             f"【错误原因】{data.get('error_type_label', '')}"
             f"（{data.get('error_type', '')}，置信度 {data.get('error_confidence', 0)}）\n"
             f"判定依据：{data.get('error_reason', '')}\n\n"
             f"【关联知识点】{kp_s}\n\n"
-            f"【同类变式题】\n{sq}"
+            f"【改进建议】\n{sug_s}"
         )
     if scene == "qa" and task:
         return _render_qa_task(task, data)
@@ -809,8 +1017,17 @@ def render_content(scene: str, data: dict, task: Optional[str] = None) -> str:
         return str(data.get("answer", ""))
     if scene == "weak_diagnosis":
         wp = data.get("weak_points") or []
-        wp_s = "\n".join(f"  - {x}" for x in wp) or "  （未给出）"
-        return f"【薄弱知识点】\n{wp_s}\n\n【复习建议】\n{data.get('advice', '')}"
+        if wp and isinstance(wp[0], dict):          # v2：name / evidence / advice
+            wp_s = "\n".join(
+                f"  - {x.get('name', '')}：{x.get('evidence', '')}\n"
+                f"    建议：{x.get('advice', '')}" for x in wp)
+        else:
+            wp_s = "\n".join(f"  - {x}" for x in wp)
+        sug = data.get("suggestions") or []
+        sug_s = "\n".join(f"  - {x}" for x in sug) if sug else "  （未给出）"
+        return (f"【诊断结论】{data.get('summary', '')}\n\n"
+                f"【薄弱点】\n{wp_s or '  （未给出）'}\n\n"
+                f"【复习建议】\n{sug_s}")
     if scene == "school_recommend":
         def fmt(name, items):
             items = items or []
@@ -823,12 +1040,19 @@ def render_content(scene: str, data: dict, task: Optional[str] = None) -> str:
             out += f"\n\n【说明】{data['note']}"
         return out
     if scene == "essay_review":
-        issues = data.get("issues") or []
-        iss_s = "\n".join(f"  {n}. {x}" for n, x in enumerate(issues, 1)) or "  （无）"
-        out = f"【润色后全文】\n{data.get('corrected', '')}\n\n【问题清单】\n{iss_s}"
-        if data.get("comments"):
-            out += f"\n\n【总评】{data['comments']}"
-        return out
+        corr = data.get("corrections") or []
+        if corr and isinstance(corr[0], dict):      # v2：original/corrected/reason
+            c_s = "\n".join(
+                f"  {n}. {x.get('original', '')} → {x.get('corrected', '')}\n"
+                f"     原因：{x.get('reason', '')}" for n, x in enumerate(corr, 1))
+        else:
+            c_s = "\n".join(f"  {n}. {x}" for n, x in enumerate(corr, 1))
+        sug = data.get("suggestions") or []
+        sug_s = "\n".join(f"  - {x}" for x in sug) if sug else "  （未给出）"
+        return (f"【总体评价】{data.get('overall_feedback', '')}\n\n"
+                f"【修改明细】\n{c_s or '  （无）'}\n\n"
+                f"【润色后全文】\n{data.get('revised_essay', '')}\n\n"
+                f"【改进建议】\n{sug_s}")
     if scene == "judge_fragment":
         ch = str(data.get("choice", "")).strip().upper()[:1]
         extra = ""
@@ -845,38 +1069,33 @@ def _render_qa_task(task: str, data: dict) -> str:
     if task == "math_guidance":
         steps = data.get("steps") or []
         st_s = "\n".join(f"  {n}. {x}" for n, x in enumerate(steps, 1)) or "  （未给出）"
+        kp = data.get("knowledge_points") or []
         out = f"【解答】{data.get('answer', '')}\n\n【步骤】\n{st_s}"
-        if data.get("pitfalls"):
-            pf = data["pitfalls"]
-            pf_s = "\n".join(f"  - {x}" for x in pf) if isinstance(pf, list) else str(pf)
-            out += f"\n\n【易错点】\n{pf_s}"
+        if kp:
+            out += f"\n\n【关联知识点】{'、'.join(str(x) for x in kp)}"
         return out
 
     if task == "politics_quiz":
-        out = f"【判定】{data.get('verdict', '')}"
-        if data.get("answer"):
-            out += f"\n【参考答案】{data['answer']}"
-        for name, key in (("踩分点", "expected_points"), ("漏答点", "missed_points")):
-            v = data.get(key)
-            if v:
-                v_s = "\n".join(f"  - {x}" for x in v) if isinstance(v, list) else str(v)
-                out += f"\n【{name}】\n{v_s}"
-        if data.get("comment"):
-            out += f"\n\n【点评】{data['comment']}"
-        return out
+        kp = data.get("key_points") or []
+        kp_s = "\n".join(f"  - {x}" for x in kp) if kp else "  （未给出）"
+        # 队长要求：参考答案默认折叠、未作答显示"尚未作答"
+        # 渲染层只标注，是否折叠由前端决定
+        return (f"【题目】{data.get('question', '')}\n\n"
+                f"【参考答案】（默认折叠）{data.get('reference_answer', '')}\n\n"
+                f"【踩分点】\n{kp_s}\n\n"
+                f"【反馈】{data.get('feedback', '')}")
 
     if task == "study_plan":
-        plan = data.get("plan")
-        if isinstance(plan, list):
-            pl_s = "\n".join(f"  - {x}" for x in plan) or "  （未给出）"
+        plan = data.get("plan") or []
+        if plan and isinstance(plan[0], dict):      # v2：day/task/minutes/success_check
+            pl_s = "\n".join(
+                f"  第 {x.get('day', '?')} 天（{x.get('minutes', '?')} 分钟）："
+                f"{x.get('task', '')}\n    完成标准：{x.get('success_check', '')}"
+                for x in plan)
         else:
-            pl_s = str(plan or "（未给出）")
-        out = f"【复习计划】\n{pl_s}"
-        if data.get("daily_focus"):
-            out += f"\n\n【每日重点】{data['daily_focus']}"
-        if data.get("note"):
-            out += f"\n\n【备注】{data['note']}"
-        return out
+            pl_s = "\n".join(f"  - {x}" for x in plan) or "  （未给出）"
+        return (f"【计划说明】{data.get('summary', '')}\n\n"
+                f"【按天安排】\n{pl_s}")
 
     return json.dumps(data, ensure_ascii=False, indent=2)
 
@@ -924,6 +1143,25 @@ def call_ai(req: AIRequest) -> AIResponse:
 
     t0 = time.time()
 
+    # ---- 请求字段自检：两处 student_answer 内容不同 → code=2 ----
+    # 队长 v2 第一节："政治抽查已支持 input.student_answer，也继续兼容
+    # user_context.student_answer；两处不同内容返回 code=2，避免静默覆盖。"
+    # 这条在本地分支也拦——与其让模型拿到一个说不清用哪个的作答，
+    # 不如当场告诉调用方"你的请求自相矛盾"。
+    conflict = _student_answer_conflict(req.input, req.user_context)
+    if conflict is not None:
+        return AIResponse(
+            ok=False, scene=scene, content="",
+            raw={"reason": "conflicting_student_answer",
+                 "input_student_answer": conflict[0],
+                 "user_context_student_answer": conflict[1]},
+            elapsed_ms=_elapsed(t0), code=2, data=None,
+            model=MODEL_NAME,
+            error=("请求字段错误（code=2）：input.student_answer 与 "
+                   "user_context.student_answer 内容不一致，请只保留一处"),
+            protocol=_gateway_protocol(None) if AI_PROVIDER == "gateway" else None,
+        )
+
     # ---- 分支一：MOCK 或服务离线，直接给占位结构化数据 ----
     if MOCK_MODE or not check_ollama_alive():
         if scene == "qa" and task:
@@ -945,6 +1183,21 @@ def _elapsed(t0: float) -> int:
     return int((time.time() - t0) * 1000)
 
 
+def _student_answer_conflict(input_: Any, uc: Any) -> Optional[tuple]:
+    """两处 student_answer 都有值且内容不同 → 返回 (input 值, uc 值)，否则 None。
+
+    只有一处有值时不算冲突（队长说的是"两处不同内容"，不是"两处都填了"）。
+    """
+    if not isinstance(input_, dict) or not isinstance(uc, dict):
+        return None
+    a, b = input_.get("student_answer"), uc.get("student_answer")
+    if a is None or b is None:
+        return None
+    if str(a).strip() == str(b).strip():
+        return None
+    return (a, b)
+
+
 def _raw_reason(raw: Any) -> str:
     """从网关的 raw 里抠出一句人话原因（网关说 raw.reason 标明原因）。"""
     if isinstance(raw, dict):
@@ -953,6 +1206,111 @@ def _raw_reason(raw: Any) -> str:
             if v:
                 return str(v)
     return ""
+
+
+# 学生作答"等于没有作答"的判据（队长 v2 第五节）：
+# student_answer 缺失、空白或明确写着 OCR 未识别时，归因缺少证据。
+_NO_ANSWER_MARKERS = ("未识别", "未作答", "无作答", "没有作答", "无法识别",
+                      "ocr未", "ocr 未")
+
+
+def student_answer_missing(value: Any) -> bool:
+    """学生作答是否等于"没有作答"。
+
+    判据来自队长 v2：缺失 / 空白 / 明确 OCR 未识别。
+    ⚠️ 用子串匹配会误伤极少数的正常作答（答案里恰好写了"未识别"三个字），
+    权衡下来宁可保守——判成"没作答"最坏是转人工复核，
+    判成"有作答"最坏是把凭空的归因写进正式库。
+    """
+    if value is None:
+        return True
+    s = str(value).strip()
+    if not s:
+        return True
+    low = s.lower()
+    return any(m in low for m in _NO_ANSWER_MARKERS)
+
+
+def apply_no_answer_rule(data: dict, student_answer: Any,
+                         raw_out: dict) -> dict:
+    """没作答 → 归因无证据：置信度强制 0，原模型分数留 raw.model_error_confidence。
+
+    队长 v2 第五节原话：
+        "student_answer 缺失、空白或明确 OCR 未识别时，error_confidence 强制为 0，
+         error_reason 说明无法归因；原模型分数留在 raw.model_error_confidence，
+         便于审计。"
+    注意 data.error_type 仍是候选值，**不是正式分类**，下游必须走人工复核队列。
+    """
+    if not isinstance(data, dict) or not student_answer_missing(student_answer):
+        return data
+    original = data.get("error_confidence")
+    if original is not None:
+        raw_out["model_error_confidence"] = original
+    data["error_confidence"] = 0.0
+    data["error_reason"] = ("[无学生作答，无法归因，置信度强制为 0] "
+                            + str(data.get("error_reason", "")).strip())
+    return data
+
+
+def storage_route(response: dict) -> str:
+    """AI 结果的去向（与队长包内 backend_contract.storage_route 同一口径）。
+
+        code != 0              → failure_log_only（只记失败日志）
+        scene=error_analysis   → manual_review_queue（**所有** AI 归因先过人）
+        其他场景                → validated_result
+
+    队长 v2 第五节："正式库不能直接写入候选分类。"
+    """
+    if response.get("code") != 0:
+        return "failure_log_only"
+    if response.get("scene") == "error_analysis":
+        return "manual_review_queue"
+    return "validated_result"
+
+
+def is_confirmed_classification(row: Any) -> bool:
+    """这一行算不算"已确认分类"（队长包内 is_confirmed_classification 的等价实现）。
+
+    只看两件事：review_flag 为空 **且** error_type 在四个 code 内。
+    历史遗留的 error_type 哪怕非空（如 id=13），只要还挂着 pending_review
+    就不算已确认——这正是队长 2026-10-09 指出的那处口径不一致的落点。
+    """
+    try:
+        if isinstance(row, dict):
+            flag, etype = row.get("review_flag"), row.get("error_type")
+        else:                                    # sqlite3.Row 也支持下标取
+            flag, etype = row["review_flag"], row["error_type"]
+    except (KeyError, TypeError, IndexError):
+        return False
+    return flag in (None, "") and etype in ERROR_TYPE_CODES
+
+
+def _as_raw(raw: Any) -> dict:
+    """raw 恒为对象（队长 v2 第一节）。字符串/None 一律包成对象。"""
+    if isinstance(raw, dict):
+        return raw
+    if raw is None:
+        return {}
+    return {"text": str(raw)[:2000]}
+
+
+def _gateway_protocol(env: Any) -> dict:
+    """网关分支的 protocol 对象：优先用网关发来的，绝不改写。
+
+    网关没给（HTTP 失败时根本没有信封）才按网关语义生成一个，
+    保证"HTTP 失败、请求错误和模型失败也都有该对象"。
+    """
+    if isinstance(env, dict) and isinstance(env.get("protocol"), dict) \
+            and env["protocol"]:
+        return dict(env["protocol"])
+    sem = CODE_SEMANTICS["gateway"]
+    return {
+        "version": sem["version"],
+        "schema_version": sem["schema_version"],
+        "code2": sem["code2"],
+        "retry_owner": sem["retry_owner"],
+        "max_output_retries": sem["max_output_retries"],
+    }
 
 
 def _call_via_gateway(req: AIRequest, scene: str, uc: dict,
@@ -971,51 +1329,62 @@ def _call_via_gateway(req: AIRequest, scene: str, uc: dict,
                 if e.code >= 500 else "请求被网关拒绝，检查字段与地址")
         return AIResponse(
             ok=False, scene=scene, content="",
-            raw={"http_status": e.code, "body": body},
+            raw={"http_status": e.code, "body": body,
+                 "reason": f"HTTP {e.code}；{hint}"},
             elapsed_ms=_elapsed(t0), code=1, data=None,
             model=MODEL_NAME, error=f"网关 HTTP {e.code}：{hint}",
+            protocol=_gateway_protocol(None),
         )
     except urllib.error.URLError as e:
         return AIResponse(
-            ok=False, scene=scene, content="", raw={"error": str(e)},
+            ok=False, scene=scene, content="",
+            raw={"error": str(e), "reason": "gateway_unreachable"},
             elapsed_ms=_elapsed(t0), code=1, data=None, model=MODEL_NAME,
             error=(f"网关不可达：{e}。127.0.0.1 指本机，"
                    f"联调时需同时运行本地 Ollama 和队长网关（start.ps1）"),
+            protocol=_gateway_protocol(None),
         )
     except Exception as e:                               # noqa: BLE001
         return AIResponse(
-            ok=False, scene=scene, content="", raw={"error": repr(e)},
+            ok=False, scene=scene, content="",
+            raw={"error": repr(e), "reason": "gateway_call_exception"},
             elapsed_ms=_elapsed(t0), code=1, data=None, model=MODEL_NAME,
             error=f"网关调用异常: {e!r}",
+            protocol=_gateway_protocol(None),
         )
 
     code = env.get("code")
-    raw = env.get("raw")
+    raw = _as_raw(env.get("raw"))
     gmodel = env.get("model") or MODEL_NAME
+    gprotocol = _gateway_protocol(env)
 
     if code == 2:
         # 网关口径：请求字段错误。重试无意义，原样反馈调用方。
         return AIResponse(
-            ok=False, scene=scene, content="", raw=raw if raw is not None else env,
+            ok=False, scene=scene, content="", raw=raw,
             elapsed_ms=_elapsed(t0), code=2, data=None, model=gmodel,
             error=f"网关判定请求字段错误（code=2），不重试：{_raw_reason(raw)}",
+            protocol=gprotocol,
         )
     if code != 0:
         # 网关已内部重试过，这里不再叠加
         return AIResponse(
-            ok=False, scene=scene, content="", raw=raw if raw is not None else env,
+            ok=False, scene=scene, content="", raw=raw,
             elapsed_ms=_elapsed(t0), code=1, data=None, model=gmodel,
             error=(f"网关返回 code={code}（模型侧已重试仍失败）："
                    f"{_raw_reason(raw)}"),
+            protocol=gprotocol,
         )
 
     parsed = env.get("data")
     if not isinstance(parsed, dict):
         return AIResponse(
             ok=False, scene=scene, content="",
-            raw={"text": json.dumps(parsed, ensure_ascii=False)[:2000]},
+            raw={"text": json.dumps(parsed, ensure_ascii=False)[:2000],
+                 "reason": "data 不是 JSON 对象"},
             elapsed_ms=_elapsed(t0), code=1, data=None, model=gmodel,
             error=f"网关 data 不是 JSON 对象：{type(parsed).__name__}",
+            protocol=gprotocol,
         )
 
     ok, why = validate(scene, parsed, task)
@@ -1026,14 +1395,19 @@ def _call_via_gateway(req: AIRequest, scene: str, uc: dict,
             raw={"data": parsed, "reason": why, "retry_owner": "gateway"},
             elapsed_ms=_elapsed(t0), code=1, data=None, model=gmodel,
             error=f"本地字段校验未通过（网关分支不重复重试）：{why}",
+            protocol=gprotocol,
         )
 
     if scene == "error_analysis":
         parsed = normalize_error_analysis(parsed)
+        # 没作答 → 置信度强制 0（队长 v2 第五节），原分数留在 raw
+        parsed = apply_no_answer_rule(
+            parsed, (req.input or {}).get("student_answer"), raw)
     return AIResponse(
         ok=True, scene=scene, content=render_content(scene, parsed, task),
-        raw=raw if raw is not None else {"data": parsed},
+        raw=raw if raw else {"data": parsed},
         elapsed_ms=_elapsed(t0), code=0, data=parsed, model=gmodel, retries=0,
+        protocol=gprotocol,
     )
 
 
@@ -1076,12 +1450,16 @@ def _call_via_ollama(req: AIRequest, scene: str, tpl_key: str,
         else:
             ok, why = validate(scene, parsed, task)
             if ok:
+                raw_obj = {"text": text}
                 if scene == "error_analysis":
                     parsed = normalize_error_analysis(parsed)
+                    # 没作答 → 置信度强制 0；原模型分数留 raw.model_error_confidence
+                    parsed = apply_no_answer_rule(
+                        parsed, values.get("student_answer"), raw_obj)
                 return AIResponse(
                     ok=True, scene=scene,
                     content=render_content(scene, parsed, task),
-                    raw={"text": text}, elapsed_ms=_elapsed(t0),
+                    raw=raw_obj, elapsed_ms=_elapsed(t0),
                     code=0, data=parsed, model=MODEL_NAME, retries=attempt,
                 )
             last_err = why

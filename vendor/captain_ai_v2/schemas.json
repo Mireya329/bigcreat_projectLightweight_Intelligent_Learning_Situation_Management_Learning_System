@@ -1,0 +1,300 @@
+{
+  "error_analysis": {
+    "type": "object",
+    "properties": {
+      "answer": {
+        "type": "string",
+        "minLength": 1
+      },
+      "solution": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        },
+        "minItems": 1,
+        "maxItems": 8
+      },
+      "knowledge_points": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        },
+        "minItems": 1,
+        "maxItems": 8
+      },
+      "error_type": {
+        "type": "string",
+        "enum": [
+          "concept_misunderstanding",
+          "calculation_error",
+          "misread_question",
+          "method_gap"
+        ]
+      },
+      "error_type_label": {
+        "type": "string",
+        "enum": [
+          "概念不清",
+          "计算失误",
+          "审题偏差",
+          "方法缺失"
+        ]
+      },
+      "error_confidence": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "error_reason": {
+        "type": "string",
+        "minLength": 1
+      },
+      "suggestions": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        },
+        "minItems": 1,
+        "maxItems": 8
+      }
+    },
+    "required": [
+      "answer",
+      "solution",
+      "knowledge_points",
+      "error_type",
+      "error_type_label",
+      "error_confidence",
+      "error_reason",
+      "suggestions"
+    ],
+    "additionalProperties": false
+  },
+  "qa": {
+    "type": "object",
+    "properties": {
+      "answer": {
+        "type": "string",
+        "minLength": 1
+      },
+      "steps": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        },
+        "minItems": 1,
+        "maxItems": 8
+      },
+      "knowledge_points": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        },
+        "minItems": 1,
+        "maxItems": 8
+      }
+    },
+    "required": [
+      "answer",
+      "steps",
+      "knowledge_points"
+    ],
+    "additionalProperties": false
+  },
+  "politics_quiz": {
+    "type": "object",
+    "properties": {
+      "question": {
+        "type": "string",
+        "minLength": 1
+      },
+      "reference_answer": {
+        "type": "string",
+        "minLength": 1
+      },
+      "key_points": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        },
+        "minItems": 1,
+        "maxItems": 8
+      },
+      "feedback": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "question",
+      "reference_answer",
+      "key_points",
+      "feedback"
+    ],
+    "additionalProperties": false
+  },
+  "study_plan": {
+    "type": "object",
+    "properties": {
+      "summary": {
+        "type": "string",
+        "minLength": 1
+      },
+      "plan": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 7,
+        "items": {
+          "type": "object",
+          "properties": {
+            "day": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 7
+            },
+            "task": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minutes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 480
+            },
+            "success_check": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "day",
+            "task",
+            "minutes",
+            "success_check"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "summary",
+      "plan"
+    ],
+    "additionalProperties": false
+  },
+  "weak_diagnosis": {
+    "type": "object",
+    "properties": {
+      "summary": {
+        "type": "string",
+        "minLength": 1
+      },
+      "weak_points": {
+        "type": "array",
+        "minItems": 0,
+        "maxItems": 8,
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "type": "string",
+              "minLength": 1
+            },
+            "advice": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "name",
+            "evidence",
+            "advice"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "suggestions": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        },
+        "minItems": 1,
+        "maxItems": 8
+      }
+    },
+    "required": [
+      "summary",
+      "weak_points",
+      "suggestions"
+    ],
+    "additionalProperties": false
+  },
+  "essay_review": {
+    "type": "object",
+    "properties": {
+      "overall_feedback": {
+        "type": "string",
+        "minLength": 1
+      },
+      "corrections": {
+        "type": "array",
+        "minItems": 0,
+        "maxItems": 10,
+        "items": {
+          "type": "object",
+          "properties": {
+            "original": {
+              "type": "string",
+              "minLength": 1
+            },
+            "corrected": {
+              "type": "string",
+              "minLength": 1
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "original",
+            "corrected",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "revised_essay": {
+        "type": "string",
+        "minLength": 1
+      },
+      "suggestions": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        },
+        "minItems": 1,
+        "maxItems": 8
+      }
+    },
+    "required": [
+      "overall_feedback",
+      "corrections",
+      "revised_essay",
+      "suggestions"
+    ],
+    "additionalProperties": false
+  }
+}

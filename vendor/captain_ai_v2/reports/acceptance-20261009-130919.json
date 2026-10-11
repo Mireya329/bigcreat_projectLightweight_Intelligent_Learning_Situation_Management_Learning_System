@@ -1,0 +1,530 @@
+{
+  "started_at": "2026-10-09T13:09:19.340193+08:00",
+  "protocol": "2026-10-09-captain-gateway-v2",
+  "schema": "2026-10-09-captain-schema-v2",
+  "transport": "HTTP -> gateway -> Ollama or deterministic statistics",
+  "code_sha256": {
+    "backend_adapter_example.py": "084bbcb40ca3ff14a8c0d4c3e748de16f467b815560c7a2a13047af0c9b23e53",
+    "backend_contract.py": "a9b5f8365a50cc97fedd44e9252be8e7c3928e2d725b3491152ef0edace709d6",
+    "captain_ai.py": "167cfebdf65529372e9705a9d36ee03c6c74276337a32c698215f307b421f123",
+    "run_live.py": "fddefd5d6f58fe0b1cf313f689e7fc605bf9e295b8c9360707017f3584333a17",
+    "server.py": "9f65325314b84ef17f2aa2d46903a29b12efe996f71ac5180734d020d72185b2",
+    "study_context.py": "565890d78cc795aeedb5a33ab0b64f993892497e8c7710ead6158f71173bc4e6",
+    "test_captain.py": "fc6eec43acd225e3445f96e97a74eb33b7a1787791aac69469ef6b100e5e2314",
+    "test_round2.py": "9dfd00c65d13951c00206d49743596ebcd83e2017244fb0bb743ca3761f8429e",
+    "verify_delivery.py": "4532509ff00a8fcd7ffd7b965ccd7dc4906f44495edaf6dc3a4542d492900605"
+  },
+  "cases": [
+    {
+      "name": "错题解析",
+      "request": {
+        "scene": "error_analysis",
+        "subject": "math",
+        "input": {
+          "question": "解方程2x+3=7",
+          "student_answer": "2x=7+3=10，所以x=5",
+          "reference_answer": "x=2"
+        },
+        "user_context": {}
+      },
+      "response": {
+        "code": 0,
+        "scene": "error_analysis",
+        "data": {
+          "answer": "2x+3=7的解为x=2",
+          "solution": [
+            "2x+3=7",
+            "-3 -3",
+            "2x=4",
+            "/2 /2",
+            "x=2"
+          ],
+          "knowledge_points": [
+            "解一元一次方程"
+          ],
+          "error_type": "calculation_error",
+          "error_type_label": "计算失误",
+          "error_confidence": 0.8,
+          "error_reason": "学生在解方程时，将等式右边的加法运算错误地应用到了左边，导致计算结果错误。",
+          "suggestions": [
+            "注意等式的两边要同时进行相同的运算",
+            "检查每一步运算是否正确",
+            "多做练习以提高计算准确度"
+          ]
+        },
+        "raw": {
+          "text": "{\"answer\": \"2x+3=7的解为x=2\", \"solution\": [\"2x+3=7\", \"-3 -3\", \"2x=4\", \"/2 /2\", \"x=2\"], \"knowledge_points\": [\"解一元一次方程\"], \"error_type\": \"calculation_error\", \"error_type_label\": \"计算失误\", \"error_confidence\": 0.8, \"error_reason\": \"学生在解方程时，将等式右边的加法运算错误地应用到了左边，导致计算结果错误。\", \"suggestions\": [\"注意等式的两边要同时进行相同的运算\", \"检查每一步运算是否正确\", \"多做练习以提高计算准确度\"]}",
+          "retried": 0,
+          "attempts": [],
+          "answer_evidence": "provided",
+          "review_required": true
+        },
+        "model": "qwen2.5:7b-instruct-q4_K_M",
+        "elapsed_ms": 8357,
+        "protocol": {
+          "version": "2026-10-09-captain-gateway-v2",
+          "schema_version": "2026-10-09-captain-schema-v2",
+          "code2": "请求字段错误；修改请求后才能重新提交，不自动重试",
+          "retry_owner": "gateway",
+          "max_output_retries": 1
+        }
+      },
+      "passed_contract": true,
+      "checks": []
+    },
+    {
+      "name": "数学指导",
+      "request": {
+        "scene": "qa",
+        "subject": "math",
+        "input": "求f(x)=x^2在x=3处的导数，给出简短步骤。",
+        "user_context": {
+          "task": "math_guidance"
+        }
+      },
+      "response": {
+        "code": 0,
+        "scene": "qa",
+        "data": {
+          "answer": "6",
+          "steps": [
+            "求函数f(x) = x^2在x=3处的导数",
+            "应用导数公式：f'(x) = 2x",
+            "将x=3代入导数公式：f'(3) = 2*3 = 6"
+          ],
+          "knowledge_points": [
+            "导数的定义",
+            "基本导数公式",
+            "导数的求法"
+          ]
+        },
+        "raw": {
+          "text": "{\"answer\": \"6\", \"steps\": [\"求函数f(x) = x^2在x=3处的导数\", \"应用导数公式：f'(x) = 2x\", \"将x=3代入导数公式：f'(3) = 2*3 = 6\"], \"knowledge_points\": [\"导数的定义\", \"基本导数公式\", \"导数的求法\"]}",
+          "retried": 0,
+          "attempts": []
+        },
+        "model": "qwen2.5:7b-instruct-q4_K_M",
+        "elapsed_ms": 1431,
+        "protocol": {
+          "version": "2026-10-09-captain-gateway-v2",
+          "schema_version": "2026-10-09-captain-schema-v2",
+          "code2": "请求字段错误；修改请求后才能重新提交，不自动重试",
+          "retry_owner": "gateway",
+          "max_output_retries": 1
+        }
+      },
+      "passed_contract": true,
+      "checks": []
+    },
+    {
+      "name": "政治抽查",
+      "request": {
+        "scene": "qa",
+        "subject": "politics",
+        "input": {
+          "question": "围绕实践与认识的关系出一道背诵抽查题。",
+          "student_answer": ""
+        },
+        "user_context": {
+          "task": "politics_quiz"
+        }
+      },
+      "response": {
+        "code": 0,
+        "scene": "qa",
+        "data": {
+          "question": "请阐述实践与认识的关系，并举例说明实践对认识的作用。",
+          "reference_answer": "实践是认识的来源、动力、目的和检验真理的唯一标准。首先，实践是认识的来源，人们通过实践获得对客观事物的认识。其次，实践是认识发展的动力，随着实践的发展，人们不断提出新的问题，推动认识的发展。再次，实践是认识的目的，人们进行认识活动是为了更好地改造世界。最后，实践是检验真理的唯一标准，只有通过实践才能验证认识是否正确。例如，科学家通过实验观察和验证理论，工人通过实际操作改进生产技术，这些都是实践对认识作用的具体体现。",
+          "key_points": [
+            "实践是认识的来源",
+            "实践是认识发展的动力",
+            "实践是认识的目的",
+            "实践是检验真理的唯一标准",
+            "实践对认识的具体体现"
+          ],
+          "feedback": "尚未作答"
+        },
+        "raw": {
+          "text": "{\"question\": \"请阐述实践与认识的关系，并举例说明实践对认识的作用。\", \"reference_answer\": \"实践是认识的来源、动力、目的和检验真理的唯一标准。首先，实践是认识的来源，人们通过实践获得对客观事物的认识。其次，实践是认识发展的动力，随着实践的发展，人们不断提出新的问题，推动认识的发展。再次，实践是认识的目的，人们进行认识活动是为了更好地改造世界。最后，实践是检验真理的唯一标准，只有通过实践才能验证认识是否正确。例如，科学家通过实验观察和验证理论，工人通过实际操作改进生产技术，这些都是实践对认识作用的具体体现。\", \"key_points\": [\"实践是认识的来源\", \"实践是认识发展的动力\", \"实践是认识的目的\", \"实践是检验真理的唯一标准\", \"实践对认识的具体体现\"], \"feedback\": \"尚未作答\"}",
+          "retried": 0,
+          "attempts": []
+        },
+        "model": "qwen2.5:7b-instruct-q4_K_M",
+        "elapsed_ms": 2873,
+        "protocol": {
+          "version": "2026-10-09-captain-gateway-v2",
+          "schema_version": "2026-10-09-captain-schema-v2",
+          "code2": "请求字段错误；修改请求后才能重新提交，不自动重试",
+          "retry_owner": "gateway",
+          "max_output_retries": 1
+        }
+      },
+      "passed_contract": true,
+      "checks": []
+    },
+    {
+      "name": "作文润色",
+      "request": {
+        "scene": "essay_review",
+        "subject": "cet4",
+        "input": "I goes to library every day. Reading books help me learn new things.",
+        "user_context": {}
+      },
+      "response": {
+        "code": 0,
+        "scene": "essay_review",
+        "data": {
+          "overall_feedback": "作文中存在语法错误，需要改正主谓一致和时态问题。",
+          "corrections": [
+            {
+              "original": "I goes to library every day.",
+              "corrected": "I go to the library every day.",
+              "reason": "主语I是第一人称单数，动词需用goes的正确形式go。"
+            },
+            {
+              "original": "Reading books help me learn new things.",
+              "corrected": "Reading books helps me learn new things.",
+              "reason": "动名词短语Reading books作主语视为单数，动词help需用第三人称单数形式help。"
+            }
+          ],
+          "revised_essay": "I go to the library every day. Reading books helps me learn new things.",
+          "suggestions": [
+            "可以增加一些具体的学习内容或感受，使句子更加丰富。"
+          ]
+        },
+        "raw": {
+          "text": "{\"overall_feedback\": \"作文中存在语法错误，需要改正主谓一致和时态问题。\", \"corrections\": [{\"original\": \"I goes to library every day.\", \"corrected\": \"I go to the library every day.\", \"reason\": \"主语I是第一人称单数，动词需用goes的正确形式go。\"}, {\"original\": \"Reading books help me learn new things.\", \"corrected\": \"Reading books helps me learn new things.\", \"reason\": \"动名词短语Reading books作主语视为单数，动词help需用第三人称单数形式help。\"}], \"revised_essay\": \"I go to the library every day. Reading books helps me learn new things.\", \"suggestions\": [\"可以增加一些具体的学习内容或感受，使句子更加丰富。\"]}",
+          "retried": 0,
+          "attempts": []
+        },
+        "model": "qwen2.5:7b-instruct-q4_K_M",
+        "elapsed_ms": 2749,
+        "protocol": {
+          "version": "2026-10-09-captain-gateway-v2",
+          "schema_version": "2026-10-09-captain-schema-v2",
+          "code2": "请求字段错误；修改请求后才能重新提交，不自动重试",
+          "retry_owner": "gateway",
+          "max_output_retries": 1
+        }
+      },
+      "passed_contract": true,
+      "checks": []
+    },
+    {
+      "name": "实际学情缺少考点分母",
+      "request": {
+        "scene": "weak_diagnosis",
+        "subject": "math",
+        "input": "根据这次练习诊断薄弱点。",
+        "user_context": {
+          "summary": {
+            "total_errors": 11,
+            "mastered_errors": 0,
+            "practice": {
+              "total": 704,
+              "correct": 445
+            },
+            "accuracy": 63.2,
+            "period": {
+              "from": "2026-09-15",
+              "to": "2026-09-21"
+            },
+            "subjects": [
+              {
+                "code": "POSTGRAD_MATH",
+                "name": "考研数学",
+                "error_count": 4
+              },
+              {
+                "code": "CET4",
+                "name": "英语四级",
+                "error_count": 0
+              }
+            ],
+            "points": [
+              {
+                "name": "偏导数与高阶偏导数",
+                "subject_code": "POSTGRAD_MATH",
+                "error_count": 11,
+                "correct_count": null,
+                "note": "正确题量暂无数据源（练习记录未记考点）"
+              }
+            ],
+            "confirmed_error_types": {},
+            "pending_review": 7,
+            "available_minutes_per_day": null,
+            "plan_days": null
+          }
+        }
+      },
+      "response": {
+        "code": 0,
+        "scene": "weak_diagnosis",
+        "data": {
+          "summary": "所提供统计范围内共704次作答，正确445次，正确率63.2%；不能将整体正确率当成单个考点正确率。 偏导数与高阶偏导数缺少完整作答分母或正确题量，现有11条错题标签记录；不能计算正确率，也不能认定正确率为0%。 7条待复核归因不纳入已确认错误类型结论。",
+          "weak_points": [],
+          "suggestions": [
+            "补录练习与考点的关联后再计算考点正确率。",
+            "先人工核对待复核归因，原始答题事实与AI分类分开统计。"
+          ]
+        },
+        "raw": {
+          "text": "",
+          "retried": 0,
+          "engine": "verified_statistics_rules",
+          "reason": "No model inference; absent counts remain unknown."
+        },
+        "model": "deterministic-statistics-v2",
+        "elapsed_ms": 1,
+        "protocol": {
+          "version": "2026-10-09-captain-gateway-v2",
+          "schema_version": "2026-10-09-captain-schema-v2",
+          "code2": "请求字段错误；修改请求后才能重新提交，不自动重试",
+          "retry_owner": "gateway",
+          "max_output_retries": 1
+        }
+      },
+      "passed_contract": true,
+      "checks": [
+        "no fabricated point accuracy"
+      ]
+    },
+    {
+      "name": "复习规划",
+      "request": {
+        "scene": "qa",
+        "subject": "math",
+        "input": "重点复习导数，安排三天计划。",
+        "user_context": {
+          "task": "study_plan",
+          "available_minutes_per_day": 30,
+          "plan_days": 3,
+          "summary": {
+            "weak_points": [
+              "导数"
+            ]
+          }
+        }
+      },
+      "response": {
+        "code": 0,
+        "scene": "qa",
+        "data": {
+          "summary": "重点复习导数，计划三天完成。",
+          "plan": [
+            {
+              "day": 1,
+              "task": "复习导数定义及基本公式",
+              "minutes": 30,
+              "success_check": "独立完成5道导数定义题并核对答案"
+            },
+            {
+              "day": 2,
+              "task": "练习导数应用题，如求切线方程",
+              "minutes": 30,
+              "success_check": "独立完成4道导数应用题并核对答案"
+            },
+            {
+              "day": 3,
+              "task": "综合复习导数相关知识点，进行模拟测试",
+              "minutes": 30,
+              "success_check": "完成一套导数专题模拟题，得分80分以上"
+            }
+          ]
+        },
+        "raw": {
+          "text": "{\"summary\": \"重点复习导数，计划三天完成。\", \"plan\": [{\"day\": 1, \"task\": \"复习导数定义及基本公式\", \"minutes\": 30, \"success_check\": \"独立完成5道导数定义题并核对答案\"}, {\"day\": 2, \"task\": \"练习导数应用题，如求切线方程\", \"minutes\": 30, \"success_check\": \"独立完成4道导数应用题并核对答案\"}, {\"day\": 3, \"task\": \"综合复习导数相关知识点，进行模拟测试\", \"minutes\": 30, \"success_check\": \"完成一套导数专题模拟题，得分80分以上\"}]}",
+          "retried": 0,
+          "attempts": [],
+          "effective_plan": {
+            "plan_days": 3,
+            "available_minutes_per_day": 30
+          }
+        },
+        "model": "qwen2.5:7b-instruct-q4_K_M",
+        "elapsed_ms": 2447,
+        "protocol": {
+          "version": "2026-10-09-captain-gateway-v2",
+          "schema_version": "2026-10-09-captain-schema-v2",
+          "code2": "请求字段错误；修改请求后才能重新提交，不自动重试",
+          "retry_owner": "gateway",
+          "max_output_retries": 1
+        }
+      },
+      "passed_contract": true,
+      "checks": []
+    },
+    {
+      "name": "政治已有作答",
+      "request": {
+        "scene": "qa",
+        "subject": "politics",
+        "input": {
+          "question": "简述实践与认识的关系",
+          "student_answer": "实践是认识的来源。"
+        },
+        "user_context": {
+          "task": "politics_quiz"
+        }
+      },
+      "response": {
+        "code": 0,
+        "scene": "qa",
+        "data": {
+          "question": "请简述实践与认识的关系",
+          "reference_answer": "实践是认识的来源，是认识的动力，是检验真理的唯一标准，实践决定认识。正确的认识对实践有指导作用，错误的认识则会误导实践。",
+          "key_points": [
+            "实践是认识的来源",
+            "实践是认识的动力",
+            "实践是检验真理的唯一标准",
+            "实践决定认识",
+            "正确的认识对实践有指导作用",
+            "错误的认识会误导实践"
+          ],
+          "feedback": "回答不完整，遗漏了实践是认识的动力、实践是检验真理的唯一标准以及正确的认识与错误的认识对实践的不同作用。"
+        },
+        "raw": {
+          "text": "{\"question\": \"请简述实践与认识的关系\", \"reference_answer\": \"实践是认识的来源，是认识的动力，是检验真理的唯一标准，实践决定认识。正确的认识对实践有指导作用，错误的认识则会误导实践。\", \"key_points\": [\"实践是认识的来源\", \"实践是认识的动力\", \"实践是检验真理的唯一标准\", \"实践决定认识\", \"正确的认识对实践有指导作用\", \"错误的认识会误导实践\"], \"feedback\": \"回答不完整，遗漏了实践是认识的动力、实践是检验真理的唯一标准以及正确的认识与错误的认识对实践的不同作用。\"}",
+          "retried": 0,
+          "attempts": []
+        },
+        "model": "qwen2.5:7b-instruct-q4_K_M",
+        "elapsed_ms": 2026,
+        "protocol": {
+          "version": "2026-10-09-captain-gateway-v2",
+          "schema_version": "2026-10-09-captain-schema-v2",
+          "code2": "请求字段错误；修改请求后才能重新提交，不自动重试",
+          "retry_owner": "gateway",
+          "max_output_retries": 1
+        }
+      },
+      "passed_contract": true,
+      "checks": []
+    },
+    {
+      "name": "缺少学生作答",
+      "request": {
+        "scene": "error_analysis",
+        "subject": "math",
+        "input": {
+          "question": "解方程2x+3=7",
+          "student_answer": "（OCR 未识别出手写作答）"
+        },
+        "user_context": {}
+      },
+      "response": {
+        "code": 0,
+        "scene": "error_analysis",
+        "data": {
+          "answer": "2x+3=7的解法",
+          "solution": [
+            "2x+3=7",
+            "2x=7-3",
+            "2x=4",
+            "x=2"
+          ],
+          "knowledge_points": [
+            "一元一次方程解法"
+          ],
+          "error_type": "method_gap",
+          "error_type_label": "方法缺失",
+          "error_confidence": 0.0,
+          "error_reason": "缺少明确可识别的学生作答，无法可靠判断错误类型；保留解析供人工复核。",
+          "suggestions": [
+            "详细写出每一步解题过程",
+            "复习一元一次方程的解法"
+          ]
+        },
+        "raw": {
+          "text": "{\"answer\": \"2x+3=7的解法\", \"solution\": [\"2x+3=7\", \"2x=7-3\", \"2x=4\", \"x=2\"], \"knowledge_points\": [\"一元一次方程解法\"], \"error_type\": \"method_gap\", \"error_type_label\": \"方法缺失\", \"error_confidence\": 0.8, \"error_reason\": \"未展示解题步骤，可能未掌握解一元一次方程的方法\", \"suggestions\": [\"详细写出每一步解题过程\", \"复习一元一次方程的解法\"]}",
+          "retried": 0,
+          "attempts": [],
+          "answer_evidence": "missing",
+          "review_required": true,
+          "model_error_confidence": 0.8
+        },
+        "model": "qwen2.5:7b-instruct-q4_K_M",
+        "elapsed_ms": 2020,
+        "protocol": {
+          "version": "2026-10-09-captain-gateway-v2",
+          "schema_version": "2026-10-09-captain-schema-v2",
+          "code2": "请求字段错误；修改请求后才能重新提交，不自动重试",
+          "retry_owner": "gateway",
+          "max_output_retries": 1
+        }
+      },
+      "passed_contract": true,
+      "checks": [
+        "missing answer forced to zero confidence"
+      ]
+    },
+    {
+      "name": "请求字段错误",
+      "expected_code": 2,
+      "request": {
+        "scene": "qa",
+        "subject": "math",
+        "input": "测试",
+        "user_context": {
+          "task": "unknown"
+        }
+      },
+      "response": {
+        "code": 2,
+        "scene": "qa",
+        "data": null,
+        "raw": {
+          "text": "",
+          "reason": "invalid_request: unknown qa task",
+          "retried": 0
+        },
+        "model": "qwen2.5:7b-instruct-q4_K_M",
+        "elapsed_ms": 0,
+        "protocol": {
+          "version": "2026-10-09-captain-gateway-v2",
+          "schema_version": "2026-10-09-captain-schema-v2",
+          "code2": "请求字段错误；修改请求后才能重新提交，不自动重试",
+          "retry_owner": "gateway",
+          "max_output_retries": 1
+        }
+      },
+      "passed_contract": true,
+      "checks": []
+    },
+    {
+      "name": "择校暂不开放",
+      "expected_code": 1,
+      "request": {
+        "scene": "school_recommend",
+        "subject": "math",
+        "input": "暂不提供院校推荐",
+        "user_context": {}
+      },
+      "response": {
+        "code": 1,
+        "scene": "school_recommend",
+        "data": null,
+        "raw": {
+          "text": "",
+          "reason": "school_data_unavailable: 待4号提供有来源及年份的院校表",
+          "retried": 0
+        },
+        "model": "qwen2.5:7b-instruct-q4_K_M",
+        "elapsed_ms": 0,
+        "protocol": {
+          "version": "2026-10-09-captain-gateway-v2",
+          "schema_version": "2026-10-09-captain-schema-v2",
+          "code2": "请求字段错误；修改请求后才能重新提交，不自动重试",
+          "retry_owner": "gateway",
+          "max_output_retries": 1
+        }
+      },
+      "passed_contract": true,
+      "checks": []
+    }
+  ],
+  "finished_at": "2026-10-09T13:09:41.954962+08:00",
+  "passed": 10,
+  "total": 10,
+  "note": "Contract checks, not comprehensive content-quality or original backend acceptance."
+}

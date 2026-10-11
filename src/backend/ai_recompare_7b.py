@@ -67,15 +67,66 @@ PICK_SQL = (
 )
 
 
+def _sqlite_backup(src: Path, dst: Path) -> None:
+    """用 SQLite 官方备份接口复制数据库。
+
+    为什么不用 shutil.copy2：队长 v2 第六节指出——
+    "数据库仍在写入且使用 WAL 时，不要直接复制主 .db 文件作为完整快照，
+     应使用 SQLite 备份接口或确认关闭所有连接后复制一致文件。"
+    Connection.backup() 在数据库层面做一致快照，不必先停服务。
+    """
+    src_con = sqlite3.connect(str(src))
+    dst_con = sqlite3.connect(str(dst))
+    try:
+        src_con.backup(dst_con)
+    finally:
+        dst_con.close()
+        src_con.close()
+
+
+# 备份要验证的"关键表"和 error_items 的"必要字段"。
+# 队长：行数相同只是初步检查，还要看 SQLite 完整性、关键表及必要字段。
+REQUIRED_TABLES = ("error_items", "subjects", "quiz_records")
+REQUIRED_COLUMNS = ("id", "error_type", "error_confidence", "review_flag")
+
+
+def verify_db_file(db_path: Path, label: str = "") -> bool:
+    """验证一个 .db 文件：完整性 + 关键表 + 必要字段 + 行数。"""
+    tag = label or db_path.name
+    con = sqlite3.connect(str(db_path))
+    try:
+        n = con.execute("SELECT COUNT(*) FROM error_items").fetchone()[0]
+        integrity = con.execute("PRAGMA integrity_check").fetchone()[0]
+        tables = {r[0] for r in con.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        cols = {r[1] for r in con.execute("PRAGMA table_info(error_items)")}
+        miss_t = [t for t in REQUIRED_TABLES if t not in tables]
+        miss_c = [c for c in REQUIRED_COLUMNS if c not in cols]
+        ok = integrity == "ok" and not miss_t and not miss_c
+        print(f"  {'✓' if ok else '✗'} {tag}：integrity_check={integrity}，"
+              f"error_items {n} 行"
+              + (f"，缺表 {miss_t}" if miss_t else "")
+              + (f"，缺字段 {miss_c}" if miss_c else ""))
+        return ok
+    except Exception as e:                             # noqa: BLE001
+        print(f"  ✗ {tag}：无法校验 {e!r}")
+        return False
+    finally:
+        con.close()
+
+
 def backup(verify: bool = True) -> Path:
-    """备份正式库，并验证备份可打开、行数与原库一致。"""
+    """备份正式库（SQLite 备份接口），并验证完整性 + 关键表 + 行数。"""
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     dst = BACKUP_DIR / f"learning_{stamp}.db"
-    shutil.copy2(DB_PATH, dst)
+    _sqlite_backup(DB_PATH, dst)
     print(f"已备份：{dst}  （{dst.stat().st_size / 1024:.0f} KB）")
 
     if verify:
+        verify_db_file(DB_PATH, "正式库")
+        if not verify_db_file(dst, "备份文件"):
+            raise RuntimeError("备份未通过完整性/关键表校验，请勿依赖它恢复")
         n_src = _count(DB_PATH, "error_items")
         n_dst = _count(dst, "error_items")
         if n_src != n_dst:
@@ -97,21 +148,19 @@ def verify_backup() -> int:
     if not BACKUP_DIR.exists():
         print("尚无备份")
         return 0
+    files = sorted(BACKUP_DIR.glob("learning_*.db"))
     bad = 0
-    for p in sorted(BACKUP_DIR.glob("learning_*.db")):
-        try:
-            n = _count(p, "error_items")
-            print(f"  ✓ {p.name}  可打开，error_items {n} 行")
-        except Exception as e:                        # noqa: BLE001
+    for p in files:
+        if not verify_db_file(p, p.name):
             bad += 1
-            print(f"  ✗ {p.name}  损坏：{e}")
-    print(f"共 {len(list(BACKUP_DIR.glob('learning_*.db')))} 个备份，{bad} 个不可用")
+    print(f"共 {len(files)} 个备份，{bad} 个不可用")
     return bad
 
 
 def make_test_db() -> Path:
-    """复制正式库为测试库。所有重跑写入只发生在这里。"""
-    shutil.copy2(DB_PATH, TEST_DB)
+    """复制正式库为测试库（同样走备份接口）。所有重跑写入只发生在这里。"""
+    _sqlite_backup(DB_PATH, TEST_DB)
+    verify_db_file(TEST_DB, "测试库")
     print(f"已建测试库：{TEST_DB}（正式库保持只读）")
     return TEST_DB
 
@@ -248,12 +297,22 @@ def write_report(records: list[dict], prepared_only: bool = False) -> None:
         f"- 备份目录：`{BACKUP_DIR}`",
         f"- 测试库（可写）：`{TEST_DB}`",
         "",
-        "## 恢复方法",
+        "## 恢复方法（队长 v2 第六节：不能在服务运行时直接 cp 覆盖）",
         "",
         "```bash",
-        "# 用备份覆盖正式库（执行前确认已停掉接口服务）",
+        "# 1) 先停掉后端接口服务和一切写库任务（uvicorn / 跑批脚本）",
+        "# 2) 把当前库另存一份，别就地覆盖",
+        "cp data/learning.db data/learning_before_restore_<时间戳>.db",
+        "",
+        "# 3) 在隔离副本上验证备份能用（完整性 + 关键表 + 必要字段 + 行数）",
+        "venv/Scripts/python.exe src/backend/ai_recompare_7b.py --verify-backup",
+        "",
+        "# 4) 确认无误后再替换，然后重启服务并检查",
         "cp data/backup/learning_<时间戳>.db data/learning.db",
         "```",
+        "",
+        "备份本身是用 SQLite 备份接口做的（`sqlite3.Connection.backup()`），",
+        "不是简单的文件复制——WAL 写入期间也能拿到一致快照。",
         "",
     ]
     REPORT.parent.mkdir(parents=True, exist_ok=True)

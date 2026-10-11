@@ -46,16 +46,23 @@ def stub(*responses):
     return state
 
 
-GOOD = ('{"solution": "先求导数再代入", "error_type": "calculation_error",'
+# 队长 v2 schemas.json（2026-10-09）的 error_analysis 字段：
+#   answer / solution(字符串数组) / knowledge_points / error_type /
+#   error_type_label / error_confidence / error_reason / suggestions
+GOOD = ('{"answer": "4", "solution": ["先求导数 f(x)=2x", "代入 x=2 得 4"],'
+        ' "knowledge_points": ["导数"], "error_type": "calculation_error",'
         ' "error_type_label": "计算失误", "error_confidence": 0.8,'
-        ' "error_reason": "第二步符号代错", "knowledge_points": ["导数"],'
-        ' "similar_question": "求 x^3 的导数"}')
+        ' "error_reason": "第二步符号代错",'
+        ' "suggestions": ["代入前先检查符号", "重做 3 道同类题"]}')
 PROSE = "好的，这道题的解题思路如下：先求导，然后代入计算，最后得出结果。"
-MISSING = '{"solution": "先求导", "error_type": "calculation_error"}'
-BAD_TYPE = ('{"solution": "s", "error_type": "concept",'
-            ' "error_type_label": "概念不清", "error_confidence": 0.8,'
-            ' "error_reason": "概念没掌握", "knowledge_points": ["x"],'
-            ' "similar_question": "q"}')
+# 只缺 error_type_label，用来验证"缺哪个字段"能被点名
+MISSING = ('{"answer": "4", "solution": ["s"], "knowledge_points": ["x"],'
+           ' "error_type": "calculation_error", "error_confidence": 0.8,'
+           ' "error_reason": "r", "suggestions": ["s"]}')
+BAD_TYPE = ('{"answer": "4", "solution": ["s"], "knowledge_points": ["x"],'
+            ' "error_type": "concept", "error_type_label": "概念不清",'
+            ' "error_confidence": 0.8, "error_reason": "概念没掌握",'
+            ' "suggestions": ["s"]}')
 
 
 def main():
@@ -117,7 +124,7 @@ def main():
     s = stub(BAD_TYPE, BAD_TYPE)
     r = ai.analyze_error("求导数", "4")
     check("code == 1", r.code == 1, f"实际 {r.code}")
-    check("error 指出非法取值", "calculation_error" in (r.error or "") or
+    check("error 指出非法取值", "枚举" in (r.error or "") or
           "四" in (r.error or ""), r.error or "")
 
     # ---- 6. 低置信度 → 待人工复核 ----
@@ -149,11 +156,14 @@ def main():
     check("stable 为 True", r.data.get("stable") is True)
     check("置信度取多轮最小值", r.data["error_confidence"] == 0.8,
           f"实际 {r.data['error_confidence']}")
-    check("解析文本保留", "正确解题思路" in r.content)
+    check("解析文本保留", "解题思路" in r.content)
 
     # ---- 9. 稳定性校验：分类不一致 → 置信度置 0，转人工复核 ----
     print("\n[9] 稳定性校验：两轮分类不一致 → 置 0 转人工复核")
-    other = GOOD.replace("calculation_error", "method_gap")
+    # label 必须跟着 code 一起换，否则第二轮会先被 label 校验拦下，
+    # 变成"一轮成功一轮降级"，测不到"两轮分类不一致"这条路径
+    other = (GOOD.replace("calculation_error", "method_gap")
+                 .replace("计算失误", "方法缺失"))
     s = stub(GOOD, other)
     r = ai.analyze_error("求导数", "9", stable=True)
     check("code 仍为 0（解析可用，不是模型异常）", r.code == 0, f"实际 {r.code}")
@@ -161,7 +171,7 @@ def main():
     check("置信度被置 0", r.data["error_confidence"] == 0.0,
           f"实际 {r.data['error_confidence']}")
     check("need_review 为真 → error_type 不入库", r.need_review is True)
-    check("解析文本仍然保留（不浪费这一次调用）", "正确解题思路" in r.content)
+    check("解析文本仍然保留（不浪费这一次调用）", "解题思路" in r.content)
     check("reason 里写明未通过稳定性校验",
           "稳定性校验" in str(r.data.get("error_reason", "")))
     check("raw 保留两轮原始输出", len(r.raw.get("rounds", [])) == 2)
@@ -285,13 +295,22 @@ def main():
         def gw2(scene, subject, input_, uc, task=None):
             seen["scene"], seen["task"], seen["uc"] = scene, task, uc
             if task == "study_plan":
-                return {"code": 0, "scene": scene, "data": {"plan": ["第1天"]},
+                return {"code": 0, "scene": scene,
+                        "data": {"summary": "三天复习安排",
+                                 "plan": [{"day": 1, "task": "复习极限",
+                                           "minutes": 30,
+                                           "success_check": "能做对 5 题"}]},
                         "raw": None, "model": "m", "elapsed_ms": 1}
             if task == "politics_quiz":
-                return {"code": 0, "scene": scene, "data": {"verdict": "基本正确"},
+                return {"code": 0, "scene": scene,
+                        "data": {"question": "什么是实践",
+                                 "reference_answer": "实践是检验真理的唯一标准",
+                                 "key_points": ["客观物质性", "自觉能动性"],
+                                 "feedback": "答出了核心，漏了社会历史性"},
                         "raw": None, "model": "m", "elapsed_ms": 1}
             return {"code": 0, "scene": scene,
-                    "data": {"answer": "1", "steps": ["a"]},
+                    "data": {"answer": "1", "steps": ["a"],
+                             "knowledge_points": ["极限"]},
                     "raw": None, "model": "m", "elapsed_ms": 1}
         ai._call_gateway = gw2
 
@@ -302,17 +321,109 @@ def main():
               seen["uc"].get("plan_days"))
         check("每日分钟夹到 480", seen["uc"]["available_minutes_per_day"] == 480,
               seen["uc"].get("available_minutes_per_day"))
-        check("渲染出复习计划", "复习计划" in r.content, r.content[:40])
+        check("渲染出按天安排", "按天安排" in r.content, r.content[:40])
 
         r = ai.politics_quiz("什么是实践", "实践是……")
-        check("政治抽查 verdict 字段生效", (r.data or {}).get("verdict") == "基本正确")
-        check("渲染出判定", "判定" in r.content, r.content[:40])
+        check("政治抽查用 v2 的 reference_answer",
+              (r.data or {}).get("reference_answer") == "实践是检验真理的唯一标准")
+        check("渲染出反馈", "反馈" in r.content, r.content[:40])
 
         r = ai.math_guidance("求极限")
         check("数学指导要 steps", "steps" in (r.data or {}))
         check("渲染出步骤", "步骤" in r.content, r.content[:40])
     finally:
         ai.AI_PROVIDER = old_provider
+
+    # ---- 17~21. 队长 v2（2026-10-09 交付包）新增约束 ----
+    print("\n[17] 网关 protocol 原样透传，不被改写成旧版本")
+    ai.AI_PROVIDER = "gateway"
+    try:
+        gw_protocol = {"version": "2026-10-09-captain-gateway-v2",
+                       "schema_version": "2026-10-09-captain-schema-v2",
+                       "code2": "请求字段错误；修改请求后才能重新提交，不自动重试",
+                       "retry_owner": "gateway", "max_output_retries": 1}
+        ai._call_gateway = lambda scene, subject, input_, uc, task=None: {
+            "code": 0, "scene": scene, "data": json.loads(GOOD),
+            "raw": {}, "model": "m", "elapsed_ms": 1,
+            "protocol": gw_protocol}
+        r = ai.analyze_error("求导数", "1")
+        env = r.to_envelope()
+        check("信封带 protocol 对象", isinstance(env.get("protocol"), dict))
+        check("version 与网关一致（没有被我侧改写）",
+              env["protocol"].get("version") == "2026-10-09-captain-gateway-v2",
+              env["protocol"].get("version"))
+        check("schema_version 透传",
+              env["protocol"].get("schema_version") == "2026-10-09-captain-schema-v2")
+        check("retry_owner 为 gateway", env["protocol"].get("retry_owner") == "gateway")
+        check("失败分支也带 protocol",
+              "protocol" in ai.AIResponse(
+                  ok=False, scene="qa", content="", code=1, data=None,
+                  protocol=ai._gateway_protocol(None)).to_envelope())
+    finally:
+        ai.AI_PROVIDER = old_provider
+
+    print("\n[18] 学生没作答 → 置信度强制 0，原分数留在 raw.model_error_confidence")
+    s = stub(GOOD)
+    r = ai.analyze_error("求导数", "（OCR 未识别出手写作答）")
+    check("code 仍为 0（解析本身成功）", r.code == 0, f"实际 {r.code}")
+    check("error_confidence 被强制为 0", r.data["error_confidence"] == 0.0,
+          f"实际 {r.data['error_confidence']}")
+    check("raw 保留模型原分数 0.8 便于审计",
+          r.raw.get("model_error_confidence") == 0.8, r.raw)
+    check("error_reason 写明无法归因", "无法归因" in r.data["error_reason"],
+          r.data["error_reason"])
+    check("need_review 为真 → 不会成为正式分类", r.need_review is True)
+
+    print("\n[19] 两处 student_answer 内容不同 → code=2，且不发请求")
+    n = {"c": 0}
+
+    def counted(prompt):
+        n["c"] += 1
+        return GOOD
+    ai._call_ollama = counted
+    r = ai.call_ai(ai.AIRequest(
+        scene="qa", input={"question": "q", "student_answer": "A"},
+        user_context={"task": "politics_quiz", "student_answer": "B"}))
+    check("code=2（请求字段错误）", r.code == 2, f"实际 {r.code}")
+    check("一次都没调模型", n["c"] == 0, f"实际 {n['c']} 次")
+    check("错误信息点明冲突", "不一致" in (r.error or ""), r.error)
+    # 只有一处有值不算冲突
+    n["c"] = 0
+    r = ai.call_ai(ai.AIRequest(
+        scene="qa", input={"question": "q", "student_answer": "A"},
+        user_context={"task": "politics_quiz"}))
+    check("只有 input 一处有值 → 不算冲突", r.code != 2, f"实际 {r.code}")
+
+    print("\n[20] schemas.json 严格校验（v2：结构 + 类型 + 枚举）")
+    extra = json.loads(GOOD[:-1] + ', "similar_question": "不该出现"}')
+    ok, why = ai.validate("error_analysis", extra)
+    check("多余字段被拒（additionalProperties=false）", ok is False, why)
+    bad_sol = json.loads(GOOD.replace('"solution": ["先求导数 f(x)=2x", "代入 x=2 得 4"]',
+                                      '"solution": "字符串"'))
+    ok, why = ai.validate("error_analysis", bad_sol)
+    check("solution 必须是字符串数组", ok is False, why)
+    mismatch = json.loads(GOOD.replace("计算失误", "方法缺失"))
+    ok, why = ai.validate("error_analysis", mismatch)
+    check("error_type_label 与 code 不匹配被拒", ok is False, why)
+    ok, why = ai.validate("error_analysis", json.loads(GOOD))
+    check("合法 v2 数据通过", ok is True, why)
+
+    print("\n[21] 规划参数：类型错误拒绝，整数字符串可转")
+    for bad in (True, 3.5, [3], "abc"):
+        uc = ai.normalize_user_context({"plan_days": bad})
+        check(f"plan_days={bad!r} 被拒绝 → 用默认 3", uc["plan_days"] == 3,
+              f"实际 {uc['plan_days']}")
+    check("拒绝/夹取都记进 LAST_USER_CONTEXT_NOTES（生效值可见）",
+          "plan_days" in ai.LAST_USER_CONTEXT_NOTES,
+          str(ai.LAST_USER_CONTEXT_NOTES))
+    uc = ai.normalize_user_context({"plan_days": "5",
+                                    "available_minutes_per_day": "120"})
+    check("整数字符串 '5' 可转换", uc["plan_days"] == 5, str(uc["plan_days"]))
+    check("整数字符串 '120' 可转换", uc["available_minutes_per_day"] == 120)
+    uc = ai.normalize_user_context({})
+    check("缺失用默认 3 天 / 60 分钟",
+          uc["plan_days"] == 3 and uc["available_minutes_per_day"] == 60,
+          f"{uc['plan_days']}/{uc['available_minutes_per_day']}")
 
     print("\n" + "=" * 64)
     if _failures:

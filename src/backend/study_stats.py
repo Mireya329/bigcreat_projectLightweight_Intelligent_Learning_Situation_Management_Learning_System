@@ -281,11 +281,18 @@ def collect_stats(cur, uid: int) -> dict:
             "ai_parsed": ai_done,
             "gated": gated,
             "manual": manual,
-            "pending_review": pending_review,   # 未确认归因，error_type 在库里是 NULL
+            "pending_review": pending_review,   # 未确认归因（见下面 pending_means）
             "confirmed": confirmed,             # 已确认、分类真正生效的题数
             # 下面这份规则直接给前端和队长看，避免把"待复核"当成已审核
             "review_policy": {
-                "pending_means": "error_type 为 NULL，未确认，不能当结论用",
+                # 2026-10-09 口径统一（队长 v2 第五节指出我文档前后不一致）：
+                # 判定是否"已确认"只认 review_flag，**不看 error_type 是否为空**。
+                # 库里确实存在 error_type 非空但仍标着 pending_review 的行
+                # （id=13，历史遗留的候选值），它同样不算已确认分类。
+                "pending_means": ("review_flag='pending_review' 一律不算已确认分类；"
+                                  "即使 error_type 非空也只是历史审计值，不能当结论用"),
+                "confirmed_rule": ("review_flag 为空 且 error_type 属于四个 code"
+                                   "（与队长包内 is_confirmed_classification 一致）"),
                 "excluded_from": [
                     "by_error_type（四类分布）——待复核的落在「未分类」，不进四类",
                     "radar 的计算维度——按 error_type 统计，待复核的不计入",
