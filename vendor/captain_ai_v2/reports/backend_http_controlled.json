@@ -1,0 +1,49 @@
+{
+  "test": "real backend to local HTTP gateway with controlled model output; no real model or database",
+  "result": {
+    "code": 0,
+    "scene": "error_analysis",
+    "data": {
+      "answer": "x=2",
+      "solution": [
+        "2x=4",
+        "最终答案：x=2"
+      ],
+      "knowledge_points": [
+        "移项"
+      ],
+      "error_type": "concept_misunderstanding",
+      "error_type_label": "概念不清",
+      "error_confidence": 0.0,
+      "error_reason": "[无学生作答，无法归因，置信度强制为 0] 缺少明确可识别的学生作答，无法可靠判断错误类型；保留解析供人工复核。",
+      "suggestions": [
+        "复习等式性质"
+      ]
+    },
+    "raw": {
+      "text": "{\"answer\": \"\", \"solution\": [\"2x=4\", \"最终答案：x=2\"], \"knowledge_points\": [\"移项\"], \"error_type\": \"concept_misunderstanding\", \"error_type_label\": \"概念不清\", \"error_confidence\": 0.8, \"error_reason\": \"移项没有变号\", \"suggestions\": [\"复习等式性质\"]}",
+      "retried": 0,
+      "attempts": [],
+      "normalizations": [
+        {
+          "field": "answer",
+          "original": "",
+          "source": "solution[-1] explicit conclusion",
+          "value": "x=2"
+        }
+      ],
+      "answer_evidence": "missing",
+      "review_required": true,
+      "model_error_confidence": 0.0
+    },
+    "model": "qwen2.5:7b-instruct-q4_K_M",
+    "elapsed_ms": 36,
+    "protocol": {
+      "version": "2026-10-12-captain-gateway-v2.1",
+      "schema_version": "2026-10-09-captain-schema-v2",
+      "code2": "请求字段错误；修改请求后才能重新提交，不自动重试",
+      "retry_owner": "gateway",
+      "max_output_retries": 1
+    }
+  }
+}

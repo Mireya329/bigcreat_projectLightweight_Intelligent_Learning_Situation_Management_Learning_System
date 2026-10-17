@@ -1,0 +1,177 @@
+{
+  "item_id": 15,
+  "test_db": "D:\\bigcreat_project\\data\\learning_test_v21.db",
+  "protocol": {
+    "version": "2026-10-12-captain-gateway-v2.1",
+    "schema_version": "2026-10-09-captain-schema-v2",
+    "code2": "请求字段错误；修改请求后才能重新提交，不自动重试",
+    "retry_owner": "gateway",
+    "max_output_retries": 1
+  },
+  "request": {
+    "scene": "error_analysis",
+    "subject": "math",
+    "input": {
+      "question": "1. 设f(x,y)=x3y+e−sin(x²−y2),则fx(1,1)=l+e\n-2x\n2y\nx+y\n2\nx+y，则\n(x-y/^2+(x+y)2}",
+      "student_answer": ""
+    },
+    "user_context": {}
+  },
+  "item_snapshot": {
+    "question_text": "1. 设f(x,y)=x3y+e−sin(x²−y2),则fx(1,1)=l+e\n-2x\n2y\nx+y\n2\nx+y，则\n(x-y/^2+(x+y)2}",
+    "wrong_answer_text": null,
+    "answer_text": null,
+    "review_flag": "pending_review",
+    "error_type": null,
+    "error_confidence": 0.4
+  },
+  "runs": [
+    {
+      "run": 1,
+      "elapsed_ms": 14786,
+      "envelope": {
+        "code": 0,
+        "scene": "error_analysis",
+        "data": {
+          "answer": "请填写分析结果",
+          "solution": [
+            "计算f(x,y)关于x的一阶偏导数fx(x,y)。",
+            "应用乘积法则和链式法则计算f(x,y)关于x的一阶偏导数。",
+            "将x=1,y=1代入计算得到fx(1,1)。"
+          ],
+          "knowledge_points": [
+            "一阶偏导数的计算",
+            "乘积法则",
+            "链式法则"
+          ],
+          "error_type": "concept_misunderstanding",
+          "error_type_label": "概念不清",
+          "error_confidence": 0.0,
+          "error_reason": "缺少明确可识别的学生作答，无法可靠判断错误类型；保留解析供人工复核。",
+          "suggestions": [
+            "复习一阶偏导数的计算方法。",
+            "练习乘积法则和链式法则的应用。",
+            "检查并理解每个步骤的计算过程。"
+          ]
+        },
+        "raw": {
+          "text": "{\"answer\": \"请填写分析结果\", \"solution\": [\"计算f(x,y)关于x的一阶偏导数fx(x,y)。\", \"应用乘积法则和链式法则计算f(x,y)关于x的一阶偏导数。\", \"将x=1,y=1代入计算得到fx(1,1)。\"], \"knowledge_points\": [\"一阶偏导数的计算\", \"乘积法则\", \"链式法则\"], \"error_type\": \"concept_misunderstanding\", \"error_type_label\": \"概念不清\", \"error_confidence\": 0.8, \"error_reason\": \"学生未能正确应用乘积法则和链式法则计算一阶偏导数。\", \"suggestions\": [\"复习一阶偏导数的计算方法。\", \"练习乘积法则和链式法则的应用。\", \"检查并理解每个步骤的计算过程。\"]}",
+          "retried": 0,
+          "attempts": [],
+          "answer_evidence": "missing",
+          "review_required": true,
+          "model_error_confidence": 0.8
+        },
+        "model": "qwen2.5:7b-instruct-q4_K_M",
+        "elapsed_ms": 14684,
+        "protocol": {
+          "version": "2026-10-12-captain-gateway-v2.1",
+          "schema_version": "2026-10-09-captain-schema-v2",
+          "code2": "请求字段错误；修改请求后才能重新提交，不自动重试",
+          "retry_owner": "gateway",
+          "max_output_retries": 1
+        }
+      },
+      "raw_text": "{\"answer\": \"请填写分析结果\", \"solution\": [\"计算f(x,y)关于x的一阶偏导数fx(x,y)。\", \"应用乘积法则和链式法则计算f(x,y)关于x的一阶偏导数。\", \"将x=1,y=1代入计算得到fx(1,1)。\"], \"knowledge_points\": [\"一阶偏导数的计算\", \"乘积法则\", \"链式法则\"], \"error_type\": \"concept_misunderstanding\", \"error_type_label\": \"概念不清\", \"error_confidence\": 0.8, \"error_reason\": \"学生未能正确应用乘积法则和链式法则计算一阶偏导数。\", \"suggestions\": [\"复习一阶偏导数的计算方法。\", \"练习乘积法则和链式法则的应用。\", \"检查并理解每个步骤的计算过程。\"]}",
+      "normalizations": []
+    },
+    {
+      "run": 2,
+      "elapsed_ms": 5942,
+      "envelope": {
+        "code": 0,
+        "scene": "error_analysis",
+        "data": {
+          "answer": "请填写分析结果",
+          "solution": [
+            "计算f(x,y)关于x的一阶偏导数fx(x,y)。",
+            "应用乘积法则和链式法则计算f(x,y)关于x的一阶偏导数。",
+            "将x=1,y=1代入计算得到fx(1,1)。"
+          ],
+          "knowledge_points": [
+            "一阶偏导数的计算",
+            "乘积法则",
+            "链式法则"
+          ],
+          "error_type": "concept_misunderstanding",
+          "error_type_label": "概念不清",
+          "error_confidence": 0.0,
+          "error_reason": "缺少明确可识别的学生作答，无法可靠判断错误类型；保留解析供人工复核。",
+          "suggestions": [
+            "复习一阶偏导数的计算方法。",
+            "练习乘积法则和链式法则的应用。",
+            "检查并理解每个步骤的计算过程。"
+          ]
+        },
+        "raw": {
+          "text": "{\"answer\": \"请填写分析结果\", \"solution\": [\"计算f(x,y)关于x的一阶偏导数fx(x,y)。\", \"应用乘积法则和链式法则计算f(x,y)关于x的一阶偏导数。\", \"将x=1,y=1代入计算得到fx(1,1)。\"], \"knowledge_points\": [\"一阶偏导数的计算\", \"乘积法则\", \"链式法则\"], \"error_type\": \"concept_misunderstanding\", \"error_type_label\": \"概念不清\", \"error_confidence\": 0.8, \"error_reason\": \"学生未能正确应用乘积法则和链式法则计算一阶偏导数。\", \"suggestions\": [\"复习一阶偏导数的计算方法。\", \"练习乘积法则和链式法则的应用。\", \"检查并理解每个步骤的计算过程。\"]}",
+          "retried": 0,
+          "attempts": [],
+          "answer_evidence": "missing",
+          "review_required": true,
+          "model_error_confidence": 0.8
+        },
+        "model": "qwen2.5:7b-instruct-q4_K_M",
+        "elapsed_ms": 5924,
+        "protocol": {
+          "version": "2026-10-12-captain-gateway-v2.1",
+          "schema_version": "2026-10-09-captain-schema-v2",
+          "code2": "请求字段错误；修改请求后才能重新提交，不自动重试",
+          "retry_owner": "gateway",
+          "max_output_retries": 1
+        }
+      },
+      "raw_text": "{\"answer\": \"请填写分析结果\", \"solution\": [\"计算f(x,y)关于x的一阶偏导数fx(x,y)。\", \"应用乘积法则和链式法则计算f(x,y)关于x的一阶偏导数。\", \"将x=1,y=1代入计算得到fx(1,1)。\"], \"knowledge_points\": [\"一阶偏导数的计算\", \"乘积法则\", \"链式法则\"], \"error_type\": \"concept_misunderstanding\", \"error_type_label\": \"概念不清\", \"error_confidence\": 0.8, \"error_reason\": \"学生未能正确应用乘积法则和链式法则计算一阶偏导数。\", \"suggestions\": [\"复习一阶偏导数的计算方法。\", \"练习乘积法则和链式法则的应用。\", \"检查并理解每个步骤的计算过程。\"]}",
+      "normalizations": []
+    },
+    {
+      "run": 3,
+      "elapsed_ms": 5962,
+      "envelope": {
+        "code": 0,
+        "scene": "error_analysis",
+        "data": {
+          "answer": "请填写分析结果",
+          "solution": [
+            "计算f(x,y)关于x的一阶偏导数fx(x,y)。",
+            "应用乘积法则和链式法则计算f(x,y)关于x的一阶偏导数。",
+            "将x=1,y=1代入计算得到fx(1,1)。"
+          ],
+          "knowledge_points": [
+            "一阶偏导数的计算",
+            "乘积法则",
+            "链式法则"
+          ],
+          "error_type": "concept_misunderstanding",
+          "error_type_label": "概念不清",
+          "error_confidence": 0.0,
+          "error_reason": "缺少明确可识别的学生作答，无法可靠判断错误类型；保留解析供人工复核。",
+          "suggestions": [
+            "复习一阶偏导数的计算方法。",
+            "练习乘积法则和链式法则的应用。",
+            "检查并理解每个步骤的计算过程。"
+          ]
+        },
+        "raw": {
+          "text": "{\"answer\": \"请填写分析结果\", \"solution\": [\"计算f(x,y)关于x的一阶偏导数fx(x,y)。\", \"应用乘积法则和链式法则计算f(x,y)关于x的一阶偏导数。\", \"将x=1,y=1代入计算得到fx(1,1)。\"], \"knowledge_points\": [\"一阶偏导数的计算\", \"乘积法则\", \"链式法则\"], \"error_type\": \"concept_misunderstanding\", \"error_type_label\": \"概念不清\", \"error_confidence\": 0.8, \"error_reason\": \"学生未能正确应用乘积法则和链式法则计算一阶偏导数。\", \"suggestions\": [\"复习一阶偏导数的计算方法。\", \"练习乘积法则和链式法则的应用。\", \"检查并理解每个步骤的计算过程。\"]}",
+          "retried": 0,
+          "attempts": [],
+          "answer_evidence": "missing",
+          "review_required": true,
+          "model_error_confidence": 0.8
+        },
+        "model": "qwen2.5:7b-instruct-q4_K_M",
+        "elapsed_ms": 5959,
+        "protocol": {
+          "version": "2026-10-12-captain-gateway-v2.1",
+          "schema_version": "2026-10-09-captain-schema-v2",
+          "code2": "请求字段错误；修改请求后才能重新提交，不自动重试",
+          "retry_owner": "gateway",
+          "max_output_retries": 1
+        }
+      },
+      "raw_text": "{\"answer\": \"请填写分析结果\", \"solution\": [\"计算f(x,y)关于x的一阶偏导数fx(x,y)。\", \"应用乘积法则和链式法则计算f(x,y)关于x的一阶偏导数。\", \"将x=1,y=1代入计算得到fx(1,1)。\"], \"knowledge_points\": [\"一阶偏导数的计算\", \"乘积法则\", \"链式法则\"], \"error_type\": \"concept_misunderstanding\", \"error_type_label\": \"概念不清\", \"error_confidence\": 0.8, \"error_reason\": \"学生未能正确应用乘积法则和链式法则计算一阶偏导数。\", \"suggestions\": [\"复习一阶偏导数的计算方法。\", \"练习乘积法则和链式法则的应用。\", \"检查并理解每个步骤的计算过程。\"]}",
+      "normalizations": []
+    }
+  ]
+}

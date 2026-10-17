@@ -55,10 +55,12 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Optional
 
 # ============================================================
@@ -502,16 +504,24 @@ def _coerce_plan_int(value: Any, lo: int, hi: int, default: int,
     return clamped
 
 
-def normalize_user_context(uc: Optional[dict]) -> dict:
+def normalize_user_context(uc: Optional[dict], scene: Optional[str] = None) -> dict:
     """规整 user_context：补默认值、夹取越界值、拒绝类型错误的值。
 
     队长 v2 给定范围：plan_days 1~7（默认 3）、available_minutes_per_day
     1~480（默认 60）。生效值写回 uc（可见），调整详情记进
     LAST_USER_CONTEXT_NOTES 并打印一行，不做静默变更。
+
+    ⚠️ 2026-10-17 修正：plan_days / available_minutes_per_day 只有 study_plan
+    用得上，以前不分场景一律注入，结果错题归因的 user_context 里也带着
+    {"plan_days":3,"available_minutes_per_day":60}。这两个键会进网关 prompt，
+    实测把 id15 的成功请求（占位符答案）拖成了 4/4 失败（空答案）。
+    现在只有 study_plan 场景、或调用方自己显式传了时才写。
     """
     global LAST_USER_CONTEXT_NOTES
     notes: dict = {}
     uc = dict(uc or {})
+    wants_plan = (scene == "study_plan"
+                  or (uc.get("task") == "study_plan"))
     if "task" in uc and uc["task"] not in QA_TASK_SPECS:
         # 未知 task 就当没有，走 qa 默认契约；不静默丢弃，记进 notes
         notes["task"] = {"给定值": uc["task"], "生效值": None,
@@ -519,13 +529,15 @@ def normalize_user_context(uc: Optional[dict]) -> dict:
         uc["_unknown_task"] = uc["task"]
         uc["task"] = None
 
-    uc["plan_days"] = _coerce_plan_int(
-        uc.get("plan_days"), PLAN_DAYS_RANGE[0], PLAN_DAYS_RANGE[1],
-        PLAN_DAYS_DEFAULT, "plan_days", notes)
-    uc["available_minutes_per_day"] = _coerce_plan_int(
-        uc.get("available_minutes_per_day"), MINUTES_PER_DAY_RANGE[0],
-        MINUTES_PER_DAY_RANGE[1], MINUTES_PER_DAY_DEFAULT,
-        "available_minutes_per_day", notes)
+    if wants_plan or "plan_days" in uc:
+        uc["plan_days"] = _coerce_plan_int(
+            uc.get("plan_days"), PLAN_DAYS_RANGE[0], PLAN_DAYS_RANGE[1],
+            PLAN_DAYS_DEFAULT, "plan_days", notes)
+    if wants_plan or "available_minutes_per_day" in uc:
+        uc["available_minutes_per_day"] = _coerce_plan_int(
+            uc.get("available_minutes_per_day"), MINUTES_PER_DAY_RANGE[0],
+            MINUTES_PER_DAY_RANGE[1], MINUTES_PER_DAY_DEFAULT,
+            "available_minutes_per_day", notes)
 
     LAST_USER_CONTEXT_NOTES = notes
     if notes:
@@ -999,6 +1011,64 @@ def validate(scene: str, data: Any, task: Optional[str] = None) -> tuple[bool, s
     return True, ""
 
 
+# ---------------------------------------------------------------------------
+# 网关提示词占位符防线（2026-10-17 v2.1 实测发现）
+#
+# 网关给模型看的输出示例里，字符串字段填的是 '请填写分析结果' 这类占位文本
+# （captain_ai.output_shape 的返回值）。7B 会照抄它——实测 id15 三次全中，
+# 输出 {"answer": "请填写分析结果", ...}。
+#
+# 它不是空字符串，所以 v2.1 新增的"空答案兜底"不会触发；
+# schema 只查 minLength=1，占位符照样通过校验，于是假的"正确答案"会一路
+# 走到渲染和入库。这条防线在我侧把它剔除掉：宁可显示"（未给出）"，
+# 也不能把占位符当成答案。
+_PLACEHOLDERS: Optional[set] = None
+_FALLBACK_PLACEHOLDER = "请填写分析结果"      # 实测到的值；包不在时的兜底
+
+
+def gateway_placeholders() -> set:
+    """取网关示例里的占位文本。优先从包里现读，读不到才用实测兜底值。"""
+    global _PLACEHOLDERS
+    if _PLACEHOLDERS is not None:
+        return _PLACEHOLDERS
+    vals: set = set()
+    try:
+        pkg = Path(__file__).resolve().parents[1] / "vendor" / "captain_ai_v2"
+        if pkg.is_dir():
+            sys.path.insert(0, str(pkg))
+            import captain_ai as _cap               # noqa: E402
+            v = _cap.output_shape({"type": "string"})
+            if isinstance(v, str) and v.strip():
+                vals.add(v.strip())
+    except Exception:
+        pass
+    vals.add(_FALLBACK_PLACEHOLDER)
+    _PLACEHOLDERS = vals
+    return vals
+
+
+def strip_placeholders(data: dict) -> tuple[dict, list]:
+    """剔除 data 里等于占位符的字段值。返回 (新 data, 被剔除的字段名)。"""
+    ph = gateway_placeholders()
+    out = dict(data)
+    hit: list = []
+    if str(out.get("answer") or "").strip() in ph:
+        out["answer"] = ""
+        out["answer_placeholder"] = True       # 供前端/日志识别：答案是被剔的，不是真没有
+        hit.append("answer")
+    for key in ("solution", "knowledge_points", "suggestions", "error_reason"):
+        v = out.get(key)
+        if isinstance(v, list):
+            kept = [x for x in v if str(x).strip() not in ph]
+            if len(kept) != len(v):
+                out[key] = kept
+                hit.append(key)
+        elif isinstance(v, str) and v.strip() in ph:
+            out[key] = ""
+            hit.append(key)
+    return out, hit
+
+
 def normalize_error_analysis(data: dict) -> dict:
     """以 error_type 为准，修正模型乱给的 error_type_label。
 
@@ -1009,6 +1079,10 @@ def normalize_error_analysis(data: dict) -> dict:
     不信模型的。同时把 confidence 收敛成 float，避免 1 / "0.8" 混着存。
     """
     out = dict(data)
+    # 先剔占位符：模型照抄网关示例时，假的 answer 会混进来（2026-10-17 实测）
+    out, ph_hit = strip_placeholders(out)
+    if ph_hit:
+        print(f"  ⚠ 剔除网关占位符字段：{ph_hit}（模型照抄了示例文本，已置空）")
     et = str(out.get("error_type", "")).strip().lower()
     out["error_type"] = et
     out["error_type_label"] = ERROR_TYPE_CODES.get(et, "")
@@ -1035,8 +1109,12 @@ def render_content(scene: str, data: dict, task: Optional[str] = None) -> str:
                  if isinstance(sol, list) else str(sol or "（未给出）"))
         sug = data.get("suggestions") or []
         sug_s = "\n".join(f"  - {x}" for x in sug) if sug else "  （未给出）"
+        ans = str(data.get("answer") or "").strip()
+        if not ans:
+            ans = ("（模型给出的是示例占位文本，已剔除，非真实答案）"
+                   if data.get("answer_placeholder") else "（未给出）")
         return (
-            f"【正确答案】{data.get('answer', '（未给出）')}\n\n"
+            f"【正确答案】{ans}\n\n"
             f"【解题思路】\n{sol_s}\n\n"
             f"【错误原因】{data.get('error_type_label', '')}"
             f"（{data.get('error_type', '')}，置信度 {data.get('error_confidence', 0)}）\n"
@@ -1166,7 +1244,7 @@ def call_ai(req: AIRequest) -> AIResponse:
     if req.variant:
         variant = req.variant
 
-    uc = normalize_user_context(req.user_context)
+    uc = normalize_user_context(req.user_context, scene)
     task = uc.get("task") if scene == "qa" else None
     if task:
         variant = task                     # 借 variant 通道选 qa 子模板
@@ -1507,7 +1585,7 @@ def _call_via_ollama(req: AIRequest, scene: str, tpl_key: str,
     """直连本机 Ollama 分支：保留原有的"校验不过重试 1 次"逻辑。"""
     values = dict(req.input or {})
     values["subject_cn"] = SUBJECTS.get(req.subject, req.subject)
-    uc = normalize_user_context(req.user_context)
+    uc = normalize_user_context(req.user_context, scene)
     if uc:
         values.setdefault("available_minutes_per_day",
                           uc.get("available_minutes_per_day", ""))

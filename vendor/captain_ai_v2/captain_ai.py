@@ -3,12 +3,13 @@ import argparse
 import json
 import math
 import os
+import re
 import time
 import urllib.request
 from pathlib import Path
 from study_context import diagnose, SUBJECT_MAP
 
-PROTOCOL_VERSION = '2026-10-09-captain-gateway-v2'
+PROTOCOL_VERSION = '2026-10-12-captain-gateway-v2.1'
 SCHEMA_VERSION = '2026-10-09-captain-schema-v2'
 MODEL_NAME = 'qwen2.5:7b-instruct-q4_K_M'
 SUBJECTS = ('politics', 'math', 'english', 'cet4', 'cet6')
@@ -68,6 +69,28 @@ def output_shape(schema):
     if schema['type'] == 'string':
         return '请填写分析结果'
     return schema.get('minimum', 0)
+
+def normalize_model_data(task, data):
+    """Repair display fields only; do not invent a solution or relax its schema."""
+    repairs=[]
+    if task!='error_analysis' or type(data) is not dict:return data,repairs
+    data=dict(data)
+    code=data.get('error_type')
+    label=data.get('error_type_label')
+    if type(code) is str and code in LABELS and type(label) is str and label!=LABELS[code]:
+        repairs.append({'field':'error_type_label','original':label,'source':'canonical_error_type_map'})
+        data['error_type_label']=LABELS[code]
+    answer=data.get('answer')
+    steps=data.get('solution')
+    if type(answer) is str and not answer.strip() and type(steps) is list and steps and all(type(s) is str and s.strip() for s in steps):
+        last=steps[-1].strip()
+        # An explicit conclusion is required. Never promote an arbitrary final step.
+        match=re.fullmatch(r'(?:最终答案|答案|结论)\s*[:：]\s*(.+)',last)
+        candidate=match.group(1).strip() if match else None
+        if candidate and len(candidate)<=300 and not any(token in candidate for token in ('待求','未知','无法','不能','不确定','假设','可能','？','?')):
+            data['answer']=candidate
+            repairs.append({'field':'answer','original':answer,'source':'solution[-1] explicit conclusion','value':candidate})
+    return data,repairs
 
 def strict_loads(text):
     def reject(value):
@@ -265,6 +288,7 @@ class Client:
                     'reason': 'model_error: ' + str(exc), 'retried': attempt, 'attempts': attempts})
             try:
                 data = strict_loads(raw)
+                data,repairs=normalize_model_data(task,data)
                 validate(data, SCHEMAS[task])
                 if task == 'error_analysis' and data['error_type_label'] != LABELS[data['error_type']]:
                     raise ValueError('error_type_label does not match error_type')
@@ -281,6 +305,7 @@ class Client:
                 if task == 'politics_quiz' and not req['user_context'].get('student_answer', '').strip():
                     data['feedback'] = '尚未作答'
                 meta={'text':raw,'retried':attempt,'attempts':attempts}
+                if repairs:meta['normalizations']=repairs
                 if task=='study_plan':
                     meta['effective_plan']={k:req['user_context'][k] for k in ('plan_days','available_minutes_per_day')}
                 if task=='error_analysis':

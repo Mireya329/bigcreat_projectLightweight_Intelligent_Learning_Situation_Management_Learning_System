@@ -47,7 +47,7 @@ class ProtocolTests(unittest.TestCase):
     def test_schema_rejections(self):
         for field, value in [('error_type','other'), ('error_confidence',True),
                              ('error_confidence',1.1), ('error_confidence',float('nan')),
-                             ('error_type_label','错误'), ('solution',[]), ('answer',' ')]:
+                             ('error_type_label',None), ('solution',[]), ('answer',' ')]:
             with self.subTest(field=field, value=value):
                 bad = dict(VALID, **{field:value})
                 self.assertEqual(self.call([bad,bad])['code'],1)

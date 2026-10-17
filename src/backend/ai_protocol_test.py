@@ -428,10 +428,17 @@ def main():
                                     "available_minutes_per_day": "120"})
     check("整数字符串 '5' 可转换", uc["plan_days"] == 5, str(uc["plan_days"]))
     check("整数字符串 '120' 可转换", uc["available_minutes_per_day"] == 120)
-    uc = ai.normalize_user_context({})
-    check("缺失用默认 3 天 / 60 分钟",
+    # 2026-10-17：计划参数只在 study_plan 场景注入。
+    # 以前不分场景都塞，polluted 了 error_analysis 的 user_context，
+    # 实测把 id15 的成功请求拖成 4/4 失败（7B 给出空答案）。
+    uc = ai.normalize_user_context({"task": "study_plan"})
+    check("study_plan 场景缺失时补默认 3 天 / 60 分钟",
           uc["plan_days"] == 3 and uc["available_minutes_per_day"] == 60,
           f"{uc['plan_days']}/{uc['available_minutes_per_day']}")
+    uc_err = ai.normalize_user_context({}, scene="error_analysis")
+    check("error_analysis 场景不注入计划参数",
+          "plan_days" not in uc_err
+          and "available_minutes_per_day" not in uc_err, str(uc_err))
 
     # ---- [22] 网关请求前置自检：本侧字段不合规时本地拦下 ----
     # 起因：择校传 {"profile": ...}、诊断传 {"stats_json": ...}，
@@ -498,6 +505,30 @@ def main():
     check("concept 的 label 是「概念不清」",
           ai.ERROR_TYPE_CODES.get("concept_misunderstanding") == "概念不清",
           str(ai.ERROR_TYPE_CODES))
+
+    # ---- v2-8：网关提示词占位符不得当成答案（2026-10-17 id15 实测发现） ----
+    # 7B 会照抄网关示例里的 '请填写分析结果'。它不是空串，v2.1 的空答案兜底
+    # 不触发；schema 只查 minLength=1，占位符照样过校验 → 假答案会一路入库。
+    print("\n[v2-8] 网关示例占位符必须被剔除")
+    ph = ai.gateway_placeholders()
+    check("能从包里读到占位符", "请填写分析结果" in ph, str(ph))
+    fake = {"answer": "请填写分析结果", "solution": ["先求导", "最终答案：2e+1"],
+            "knowledge_points": ["请填写分析结果"], "suggestions": ["多练"],
+            "error_type": "calculation_error", "error_type_label": "计算失误",
+            "error_confidence": 0.8, "error_reason": "占位符"}
+    fixed = ai.normalize_error_analysis(fake)
+    check("占位 answer 被置空", fixed["answer"] == "", repr(fixed["answer"]))
+    check("留下 answer_placeholder 标记", fixed.get("answer_placeholder") is True)
+    check("占位 knowledge_points 被剔除", fixed["knowledge_points"] == [],
+          str(fixed["knowledge_points"]))
+    check("真实 solution 未被误删", len(fixed["solution"]) == 2, str(fixed["solution"]))
+    real = dict(fake, answer="2e+1", knowledge_points=["偏导数"])
+    real_fixed = ai.normalize_error_analysis(real)
+    check("真答案不受影响", real_fixed["answer"] == "2e+1", repr(real_fixed["answer"]))
+    check("真答案不打占位标记", "answer_placeholder" not in real_fixed)
+    check("渲染时占位答案写明已剔除",
+          "已剔除" in ai.render_content("error_analysis", fixed),
+          ai.render_content("error_analysis", fixed).split("\n")[0])
 
     print("\n" + "=" * 64)
     if _failures:

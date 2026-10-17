@@ -1,0 +1,195 @@
+================================================================
+AI 协议联调自测（桩函数，不连真实模型）
+协议版本 2026-10-12-captain-gateway-v2.1
+================================================================
+
+[1] 返回合法 JSON → code=0
+  ✓ code == 0  实际 0
+  ✓ 只调用模型 1 次  实际 1 次
+  ✓ data 已填充
+  ✓ data.error_type 为四 code 之一  calculation_error
+  ✓ 信封六字段齐全
+  ✓ 信封带 protocol 版本说明
+  ✓ scene 归一为 error_analysis
+  ✓ confidence 0.8 → 不需人工复核
+
+[2] 首次返回散文 → 重试 1 次后成功
+  ✓ code == 0  实际 0
+  ✓ 确实重试了（共调用 2 次）  实际 2 次
+  ✓ data 来自第二次
+
+[3] 两次都不合法 → 降级 code=1
+  ✓ code == 1（降级）  实际 1
+  ✓ 重试上限生效（共 2 次：1 次 + 重试 1 次）  实际 2 次
+  ✓ data 为 None
+  ✓ ok 为 False（调用方据此拒绝入库）
+  ✓ content 为空串（原文不会进业务表）
+  ✓ raw 保留原文供排查
+  ✓ raw 记录了重试次数
+
+[4] JSON 缺必填字段 → 降级
+  ✓ code == 1  实际 1
+  ✓ error 说明缺了什么  格式校验未通过（已重试 1 次）: data 缺少必填字段: error_type_label
+
+[5] error_type 不是队长四 code → 降级
+  ✓ code == 1  实际 1
+  ✓ error 指出非法取值  格式校验未通过（已重试 1 次）: error_type 取值不在枚举内: 'concept'
+
+[6] 置信度 < 0.5 → 待人工复核
+  ✓ code == 0（解析本身是成功的）
+  ✓ need_review 为真  confidence=0.3
+  ✓ 入库时 error_type 应置 NULL（由 ocr_ai_batch 执行）
+
+[7] 模型服务不可达 → code=1，不向上抛异常
+  ✓ code == 1  实际 1
+  ✓ 未抛异常（调用方能继续跑批）
+  ✓ data 为 None
+
+[8] 稳定性校验：两轮分类一致 → 照常返回
+  ✓ 两轮各调用 1 次（共 2 次）  实际 2 次
+  ✓ stable 为 True
+  ✓ 置信度取多轮最小值  实际 0.8
+  ✓ 解析文本保留
+
+[9] 稳定性校验：两轮分类不一致 → 置 0 转人工复核
+  ✓ code 仍为 0（解析可用，不是模型异常）  实际 0
+  ✓ stable 为 False
+  ✓ 置信度被置 0  实际 0.0
+  ✓ need_review 为真 → error_type 不入库
+  ✓ 解析文本仍然保留（不浪费这一次调用）
+  ✓ reason 里写明未通过稳定性校验
+  ✓ raw 保留两轮原始输出
+
+[10] 稳定性校验：一轮成功一轮降级 → 以成功的为准
+  ✓ code == 0  实际 0
+  ✓ 用上了成功那轮的结果
+
+[11] judge_fragment 两轮判定不一致 → 强制 C（不补录）
+  ✓ choice 被强制为 C  实际 C
+  ✓ stable 为 False
+  ✓ 写明原因
+  ✓ 渲染文本以 C 开头（ocr_recover 的正则认得出）  "C\n理由：[判定未通过稳定性校验] ['"
+
+[12] judge_fragment 两轮一致 → 照常返回
+  ✓ choice 保持 B
+  ✓ stable 为 True
+
+[13] 旧调用方兼容（ok / content / elapsed_ms）
+  ✓ 旧函数仍可用
+  ✓ v2 走 v2 Prompt
+
+[14] 网关分支：后端不再叠加模型重试
+  ✓ 网关 code=0 → 我侧 code=0  实际 0
+  ✓ 只请求网关 1 次（不叠加后端重试）  实际 1 次
+  ✓ model 透传网关的  qwen2.5:7b
+  ✓ 网关 code=1 → 我侧 code=1（降级）  实际 1
+  ✓ data=None、content 为空
+  ✓ 网关失败也不重试  实际 1 次
+  ✓ 保留网关 raw 供排障  {'reason': 'model_failed_after_retry'}
+  ✓ 网关 code=2 → 我侧保留 code=2 语义  实际 2
+  ✓ code=2 不重试（重试没有意义）  实际 1 次
+  ✓ 错误信息带出网关原因  网关判定请求字段错误（code=2），不重试：bad_request: subject 非法
+  ✓ 网关成功但字段不全 → 我侧降级 code=1  实际 1
+  ✓ 校验失败也不重发请求  实际 1 次
+  ✓ raw.retry_owner 标明重试归网关  {'data': {'solution': '只有解析，没给分类'}, 'reason': 'data 缺少必填字段: answer', 'retry_owner': 'gateway'}
+
+[15] 网关分支：HTTP 状态码 ≠ 信封 code，分开处理
+  ✓ HTTP 503 → code=1（不是 code=2）  实际 1
+  ✓ 提示稍后再试、不无限重试  网关 HTTP 503：服务繁忙或网关内部错误，稍后再试，不无限重试
+  ✓ HTTP 状态码记进 raw  {'http_status': 503, 'body': '', 'reason': 'HTTP 503；服务繁忙或网关内部错误，稍后再试，不无限重试'}
+
+[16] qa 子任务在网关下按 task 分派
+[ai_interface] user_context 已调整：{"plan_days": {"给定值": 10, "生效值": 7, "原因": "超出范围已夹取"}, "available_minutes_per_day": {"给定值": 999, "生效值": 480, "原因": "超出范围已夹取"}}
+  ✓ study_plan 走 scene=qa + task=study_plan  {'scene': 'qa', 'task': 'study_plan', 'uc': {'task': 'study_plan', 'plan_days': 7, 'available_minutes_per_day': 480}}
+  ✓ plan_days 越界夹到 7  7
+  ✓ 每日分钟夹到 480  480
+  ✓ 渲染出按天安排  【计划说明】三天复习安排
+
+【按天安排】
+  第 1 天（30 分钟）：复习极限
+  ✓ 政治抽查用 v2 的 reference_answer
+  ✓ 渲染出反馈  【题目】什么是实践
+
+【参考答案】（默认折叠）实践是检验真理的唯一标准
+
+【踩分
+  ✓ 数学指导要 steps
+  ✓ 渲染出步骤  【解答】1
+
+【步骤】
+  1. a
+
+【关联知识点】极限
+
+[17] 网关 protocol 原样透传，不被改写成旧版本
+  ✓ 信封带 protocol 对象
+  ✓ version 与网关一致（没有被我侧改写）  2026-10-09-captain-gateway-v2
+  ✓ schema_version 透传
+  ✓ retry_owner 为 gateway
+  ✓ 失败分支也带 protocol
+
+[18] 学生没作答 → 置信度强制 0，原分数留在 raw.model_error_confidence
+  ✓ code 仍为 0（解析本身成功）  实际 0
+  ✓ error_confidence 被强制为 0  实际 0.0
+  ✓ raw 保留模型原分数 0.8 便于审计  {'text': '{"answer": "4", "solution": ["先求导数 f(x)=2x", "代入 x=2 得 4"], "knowledge_points": ["导数"], "error_type": "calculation_error", "error_type_label": "计算失误", "error_confidence": 0.8, "error_reason": "第二步符号代错", "suggestions": ["代入前先检查符号", "重做 3 道同类题"]}', 'model_error_confidence': 0.8}
+  ✓ error_reason 写明无法归因  [无学生作答，无法归因，置信度强制为 0] 第二步符号代错
+  ✓ need_review 为真 → 不会成为正式分类
+
+[19] 两处 student_answer 内容不同 → code=2，且不发请求
+  ✓ code=2（请求字段错误）  实际 2
+  ✓ 一次都没调模型  实际 0 次
+  ✓ 错误信息点明冲突  请求字段错误（code=2）：input.student_answer 与 user_context.student_answer 内容不一致，请只保留一处
+  ✓ 只有 input 一处有值 → 不算冲突  实际 1
+
+[20] schemas.json 严格校验（v2：结构 + 类型 + 枚举）
+  ✓ 多余字段被拒（additionalProperties=false）  data 出现未定义字段: ['similar_question']
+  ✓ solution 必须是字符串数组  solution 类型应为 array，实际是 str
+  ✓ label 与 code 不匹配：放行（不再整条丢弃）
+  ✓ label 被 normalize 以 code 为准修正  计算失误 vs calculation_error
+  ✓ 修正不改动 error_type 本身  calculation_error
+  ✓ 合法 v2 数据通过
+
+[21] 规划参数：类型错误拒绝，整数字符串可转
+[ai_interface] user_context 已调整：{"plan_days": {"给定值": true, "生效值": 3, "原因": "布尔值不是有效数字"}}
+  ✓ plan_days=True 被拒绝 → 用默认 3  实际 3
+[ai_interface] user_context 已调整：{"plan_days": {"给定值": 3.5, "生效值": 3, "原因": "小数不是有效整数"}}
+  ✓ plan_days=3.5 被拒绝 → 用默认 3  实际 3
+[ai_interface] user_context 已调整：{"plan_days": {"给定值": [3], "生效值": 3, "原因": "类型 list 不是有效数字"}}
+  ✓ plan_days=[3] 被拒绝 → 用默认 3  实际 3
+[ai_interface] user_context 已调整：{"plan_days": {"给定值": "abc", "生效值": 3, "原因": "字符串不是整数形式"}}
+  ✓ plan_days='abc' 被拒绝 → 用默认 3  实际 3
+  ✓ 拒绝/夹取都记进 LAST_USER_CONTEXT_NOTES（生效值可见）  {'plan_days': {'给定值': 'abc', '生效值': 3, '原因': '字符串不是整数形式'}}
+  ✓ 整数字符串 '5' 可转换  5
+  ✓ 整数字符串 '120' 可转换
+  ✓ 缺失用默认 3 天 / 60 分钟  3/60
+
+[22] 网关请求前置自检（不合规字段本地拦下，不发请求）
+  ✓ judge_fragment 被拦（网关不支持该 scene）
+  ✓ 未知字段 profile 被拦
+  ✓ 未知字段 stats_json 被拦
+  ✓ 缺正文字段被拦
+  ✓ 正文为空串被拦
+  ✓ question 与 text 内容不一致被拦
+  ✓ 合规 input 放行
+  ✓ 择校改字段名后放行
+  ✓ 超长正文被拦（网关上限 6000）
+  ✓ judge_fragment 在网关模式下直接 code=2 且未发请求  code=2 err=请求字段错误（code=2，网关前置自检拦下，未发请求）：scene=judge_fragment 不在网关支持的 5 个场景内（judge_fragment 是后端扩展，网关明确不支持，请走 local 分支）
+  ✓ 择校端到端：字段已合规，不再被前置拦下  err=网关调用异常: AssertionError('不该发请求：字段不合规应在本地拦下')
+
+[v2-6] judge_fragment：判 B 会补题，必须带题干
+  ✓ 判 B 无 stem 被拒  choice=B 必须同时给出 stem（题干），否则无法安全补题
+  ✓ 拒因提到 stem  choice=B 必须同时给出 stem（题干），否则无法安全补题
+  ✓ 判 B 有 stem 放行
+  ✓ 判 C 不需要 stem（不写库，无所谓）
+
+[v2-7] error_type_label 从 schemas.json 读，不靠手抄
+  ✓ 能从包里读到 4 个 label  {'concept_misunderstanding': '概念不清', 'calculation_error': '计算失误', 'misread_question': '审题偏差', 'method_gap': '方法缺失'}
+  ✓ concept 的 label 是「概念不清」  {'concept_misunderstanding': '概念不清', 'calculation_error': '计算失误', 'misread_question': '审题偏差', 'method_gap': '方法缺失'}
+
+================================================================
+✅ 全部通过。已落地的约束：
+   · code=0/1 信封结构正确
+   · 直连 Ollama：code=2 重试 1 次后降级
+   · 网关分支：不叠加模型重试，code=2=请求字段错误原样反馈
+   · 降级时 data=None、content 为空串，原文只留在 raw
+

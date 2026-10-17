@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 """统一数据库连接层：全项目唯一的连库入口，禁止其他文件自己 sqlite3.connect"""
 from pathlib import Path
+import os
 import sqlite3
 
 ROOT = Path(__file__).resolve().parents[3]
-DB_PATH = ROOT / "data" / "learning.db"
+# 默认仍是正式库。设 LEARNING_DB_PATH 可指向测试库副本，
+# 方便在不动真实数据的前提下跑接口/导入测试（2026-10-17）。
+DB_PATH = Path(os.environ.get("LEARNING_DB_PATH")
+               or (ROOT / "data" / "learning.db"))
 
 
 def get_conn():

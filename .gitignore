@@ -32,3 +32,6 @@ upstream/
 
 # AI 工具技能文件（非项目代码）
 .claude/
+
+# 解压交付包的临时目录
+.tmp_capv21/
