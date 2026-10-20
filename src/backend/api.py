@@ -67,6 +67,57 @@ def get_user_id(cur, username: str) -> int:
     return r["id"]
 
 
+# ---------- 结论归档（队长 v2.2 第四节第 2、3 条） ----------
+_HISTORY_DDL = """
+CREATE TABLE IF NOT EXISTS error_review_history (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  error_item_id     INTEGER NOT NULL REFERENCES error_items(id) ON DELETE CASCADE,
+  event             TEXT    NOT NULL,
+  review_flag       TEXT,
+  error_type        TEXT,
+  error_confidence  REAL,
+  analysis          TEXT,
+  wrong_answer_text TEXT,
+  answer_text       TEXT,
+  user_notes        TEXT,
+  reason            TEXT,
+  created_at        TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+)
+"""
+
+
+def _ensure_history_table(cur):
+    """归档表若还没建（没跑迁移脚本）就现建，避免接口 500。
+
+    表结构以 src/backend/db/migrate_review_history.py 为准，这里只是兜底。
+    """
+    n = cur.execute(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table'"
+        " AND name='error_review_history'").fetchone()[0]
+    if not n:
+        cur.execute(_HISTORY_DDL)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_review_hist_item"
+                    " ON error_review_history(error_item_id, created_at)")
+
+
+def _archive_review(cur, error_id: int, event: str, row, reason: str):
+    """把当前这条结论原样存一份再改。只追加，不参与统计。"""
+    _ensure_history_table(cur)
+    cur.execute(
+        "INSERT INTO error_review_history"
+        " (error_item_id, event, review_flag, error_type, error_confidence,"
+        "  analysis, wrong_answer_text, answer_text, user_notes, reason)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (error_id, event, row["review_flag"] if "review_flag" in row.keys() else None,
+         row["error_type"] if "error_type" in row.keys() else None,
+         row["error_confidence"] if "error_confidence" in row.keys() else None,
+         row["analysis"] if "analysis" in row.keys() else None,
+         row["wrong_answer_text"] if "wrong_answer_text" in row.keys() else None,
+         row["answer_text"] if "answer_text" in row.keys() else None,
+         row["user_notes"] if "user_notes" in row.keys() else None,
+         reason))
+
+
 # ---------- 健康检查 ----------
 @app.get("/health")
 def health():
@@ -208,27 +259,60 @@ class AnswerIn(BaseModel):
 
 @app.patch("/errors/{error_id}/answer")
 def set_answer(error_id: int, body: AnswerIn):
+    """补录 / 修订作答。
+
+    ⚠️ 队长 v2.2 第四节第 2 条：作答是归因的输入，改了输入，旧结论就不该
+    继续算数。所以**内容实际改变**时把已确认的归因退回待复核（不再计入
+    "已确认"统计），旧结论归档进 error_review_history 留痕。
+    内容没变的重复提交不重置——避免前端手抖点两次就把确认状态刷掉。
+    """
     conn = get_conn()
     cur = conn.cursor()
     if not cur.execute("SELECT id FROM error_items WHERE id=?", (error_id,)).fetchone():
         conn.close()
         raise HTTPException(404, f"错题 {error_id} 不存在")
     before = cur.execute(
-        "SELECT wrong_answer_text, answer_text FROM error_items WHERE id=?",
+        "SELECT wrong_answer_text, answer_text, review_flag, error_type,"
+        " analysis, error_confidence, user_notes FROM error_items WHERE id=?",
         (error_id,)).fetchone()
     # None 表示该字段本次不改，只改明确传了的那个
     ans = before["wrong_answer_text"] if body.answer is None else body.answer.strip()
     ref = before["answer_text"] if body.reference_answer is None \
         else (body.reference_answer.strip() or None)
-    cur.execute(
-        "UPDATE error_items SET wrong_answer_text=?, answer_text=?,"
-        " updated_at=datetime('now','localtime') WHERE id=?",
-        (ans, ref, error_id))
+
+    # 只在"内容真的变了"时才失效旧结论（strip 后比较，避免空白差异误判）
+    ans_changed = (before["wrong_answer_text"] or "").strip() != (ans or "").strip()
+    ref_changed = (before["answer_text"] or "").strip() != (ref or "").strip()
+    changed = ans_changed or ref_changed
+    invalidated = False
+
+    if changed:
+        # 有旧结论才归档，没结论的题不产生噪音记录
+        if before["review_flag"] == "confirmed" or before["error_type"]:
+            _archive_review(cur, error_id, "answer_changed", before,
+                            "学生/参考答案被修改，原已确认分类退回待复核")
+            invalidated = True
+        cur.execute(
+            "UPDATE error_items SET wrong_answer_text=?, answer_text=?,"
+            " review_flag=CASE WHEN review_flag='confirmed'"
+            " THEN 'pending_review' ELSE review_flag END,"
+            " updated_at=datetime('now','localtime') WHERE id=?",
+            (ans, ref, error_id))
     conn.commit()
+    row = cur.execute(
+        "SELECT review_flag, error_type, wrong_answer_text, answer_text"
+        " FROM error_items WHERE id=?", (error_id,)).fetchone()
     conn.close()
     return {"id": error_id,
-            "answer_recorded": bool(ans),
-            "reference_answer_recorded": bool(ref)}
+            "answer_recorded": bool(row["wrong_answer_text"]),
+            "reference_answer_recorded": bool(row["answer_text"]),
+            "changed": changed,
+            "review_flag": row["review_flag"],
+            "previous_conclusion_invalidated": invalidated,
+            "note": ("作答内容已变更，已确认分类退回待复核，旧结论已归档"
+                     if invalidated else
+                     ("内容未变化，状态不变" if not changed else
+                      "内容已更新（该条原本就没有已确认分类）"))}
 
 
 class ReviewIn(BaseModel):
@@ -249,7 +333,11 @@ def set_review(error_id: int, body: ReviewIn):
         raise HTTPException(400, "decision 只能是 confirmed / rejected")
     conn = get_conn()
     cur = conn.cursor()
-    if not cur.execute("SELECT id FROM error_items WHERE id=?", (error_id,)).fetchone():
+    row0 = cur.execute(
+        "SELECT id, review_flag, error_type, error_confidence, analysis,"
+        " wrong_answer_text, answer_text, user_notes FROM error_items WHERE id=?",
+        (error_id,)).fetchone()
+    if not row0:
         conn.close()
         raise HTTPException(404, f"错题 {error_id} 不存在")
     if body.error_type and body.error_type not in ai_interface.ERROR_TYPE_CODES:
@@ -257,6 +345,23 @@ def set_review(error_id: int, body: ReviewIn):
         raise HTTPException(
             400, f"error_type 只能是：{sorted(ai_interface.ERROR_TYPE_CODES)}")
     flag = "confirmed" if decision == "confirmed" else "pending_review"
+    # 队长 v2.2 第四节第 4 条：confirmed 却没有有效分类 = "已确认但无分类"，
+    # 这种记录会污染统计。确认前先检查"本次提交的"或"库里已有的"最终分类
+    # 是不是四个合法 code 之一；不满足就直接报错，**不改任何状态**。
+    final_type = (body.error_type or "").strip() or (row0["error_type"] or "").strip()
+    if decision == "confirmed" and final_type not in ai_interface.ERROR_TYPE_CODES:
+        conn.close()
+        raise HTTPException(
+            400,
+            "decision=confirmed 必须有有效分类：请传 error_type（四选一："
+            + "/".join(sorted(ai_interface.ERROR_TYPE_CODES))
+            + "）；当前这条也没有可沿用的历史分类，无法确认")
+    # 覆盖一个已有的人工结论前先归档，保证旧结论可追溯
+    if row0["review_flag"] == "confirmed" and (
+            flag != "confirmed" or (body.error_type or row0["error_type"] or "")
+            != (row0["error_type"] or "")):
+        _archive_review(cur, error_id, "review_changed", row0,
+                        f"人工复核改为 {decision}，原已确认结论归档")
     # 注意：error_items 表里没有 error_type_label 列（label 由 error_type 现算），
     # 别在这里写它，否则 sqlite 直接报 no such column。
     if body.error_type:
@@ -292,6 +397,12 @@ def analyze_error_item(error_id: int, force: bool = False):
         由人工在 /review 接口确认后才算已确认分类（队长 v2.1 第二节第 4 条）
       · 已 confirmed 的记录默认不再覆盖，除非显式 force=True
       · 缺学生作答时网关会把置信度强制归零，这里如实返回，不粉饰
+
+    状态转换（队长 v2.2 第四节第 3 条，已明确，不再靠 COALESCE 蒙）：
+      重分析成功 = 产生了**新的**候选结论，旧的已确认分类对新结论不再适用
+      → 库里 review_flag 一律写成 'pending_review'，返回体读库回显，
+        两边不可能再不一致；旧结论归档进 error_review_history。
+      重分析失败（code!=0）→ 不碰任何状态，旧结论原样保留。
     """
     conn = get_conn()
     cur = conn.cursor()
@@ -320,14 +431,23 @@ def analyze_error_item(error_id: int, force: bool = False):
                 "raw_reason": (resp.raw or {}).get("reason", "")}
 
     d = resp.data
-    # 只写"给人看的解析"和置信度依据；错因本身等人工确认
+    # 有旧结论就先归档（force 重跑推翻的是人工结论，必须留痕）
+    if row["review_flag"] == "confirmed" or row["error_type"]:
+        _archive_review(cur, error_id, "reanalyzed", row,
+                        "重新分析产生新候选结论，旧结论归档待人工再确认")
+    # 只写"给人看的解析"和置信度依据；错因本身等人工确认。
+    # review_flag 明确写 pending_review，不再用 COALESCE 保留旧 confirmed：
+    # 那样会出现"库里算已确认、返回体却说待复核"的自相矛盾。
     cur.execute(
         "UPDATE error_items SET analysis=?, error_confidence=?, error_reason=?,"
-        " ai_model=?, ai_elapsed_ms=?, review_flag=COALESCE(review_flag,'pending_review'),"
+        " ai_model=?, ai_elapsed_ms=?, review_flag='pending_review',"
         " updated_at=datetime('now','localtime') WHERE id=?",
         (resp.content, d.get("error_confidence"), d.get("error_reason"),
          resp.model, resp.elapsed_ms, error_id))
     conn.commit()
+    # 回读一次，返回体的状态直接来自库，杜绝口是心非
+    after = cur.execute(
+        "SELECT review_flag FROM error_items WHERE id=?", (error_id,)).fetchone()
     conn.close()
     return {
         "id": error_id, "code": 0, "ok": True,
@@ -337,10 +457,37 @@ def analyze_error_item(error_id: int, force: bool = False):
         "error_confidence": d.get("error_confidence"),
         "answer_placeholder": bool(d.get("answer_placeholder")),
         "answer_recorded": bool(row["wrong_answer_text"]),
-        "review_flag": "pending_review",
+        "review_flag": after["review_flag"],
+        "previous_review_flag": row["review_flag"],
         "note": "AI 候选错因，未经人工确认不计入统计",
         "elapsed_ms": resp.elapsed_ms,
     }
+
+
+@app.get("/errors/{error_id}/history")
+def error_history(error_id: int):
+    """查某条错题的历史结论归档（只追加，不参与统计）。
+
+    什么时候会产生归档：
+      · answer_changed  学生/参考答案被改，旧已确认分类退回待复核
+      · reanalyzed      force 重跑分析，产生了新的候选结论
+      · review_changed  人工复核覆盖了一个已有的已确认结论
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+    if not cur.execute("SELECT id FROM error_items WHERE id=?", (error_id,)).fetchone():
+        conn.close()
+        raise HTTPException(404, f"错题 {error_id} 不存在")
+    _ensure_history_table(cur)
+    rows = cur.execute(
+        "SELECT id, event, review_flag, error_type, error_confidence,"
+        " wrong_answer_text, answer_text, reason, created_at"
+        " FROM error_review_history WHERE error_item_id=?"
+        " ORDER BY created_at, id", (error_id,)).fetchall()
+    conn.commit()
+    conn.close()
+    return {"id": error_id, "count": len(rows),
+            "history": [dict(r) for r in rows]}
 
 
 @app.patch("/errors/{error_id}/mastery")

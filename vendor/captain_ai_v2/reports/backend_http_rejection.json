@@ -1,0 +1,21 @@
+{
+  "mode": "real backend and HTTP gateway; controlled recorded model response; no database",
+  "code": 1,
+  "data": null,
+  "content": "",
+  "raw": {
+    "text": "{\"answer\": \"请填写分析结果\", \"solution\": [\"计算f(x,y)关于x的一阶偏导数fx(x,y)。\", \"应用乘积法则和链式法则计算f(x,y)关于x的一阶偏导数。\", \"将x=1,y=1代入计算得到fx(1,1)。\"], \"knowledge_points\": [\"一阶偏导数的计算\", \"乘积法则\", \"链式法则\"], \"error_type\": \"concept_misunderstanding\", \"error_type_label\": \"概念不清\", \"error_confidence\": 0.8, \"error_reason\": \"学生未能正确应用乘积法则和链式法则计算一阶偏导数。\", \"suggestions\": [\"复习一阶偏导数的计算方法。\", \"练习乘积法则和链式法则的应用。\", \"检查并理解每个步骤的计算过程。\"]}",
+    "reason": "data.answer: placeholder_text is not an actual answer",
+    "retried": 1,
+    "attempts": [
+      {
+        "text": "{\"answer\": \"请填写分析结果\", \"solution\": [\"计算f(x,y)关于x的一阶偏导数fx(x,y)。\", \"应用乘积法则和链式法则计算f(x,y)关于x的一阶偏导数。\", \"将x=1,y=1代入计算得到fx(1,1)。\"], \"knowledge_points\": [\"一阶偏导数的计算\", \"乘积法则\", \"链式法则\"], \"error_type\": \"concept_misunderstanding\", \"error_type_label\": \"概念不清\", \"error_confidence\": 0.8, \"error_reason\": \"学生未能正确应用乘积法则和链式法则计算一阶偏导数。\", \"suggestions\": [\"复习一阶偏导数的计算方法。\", \"练习乘积法则和链式法则的应用。\", \"检查并理解每个步骤的计算过程。\"]}",
+        "reason": "data.answer: placeholder_text is not an actual answer"
+      },
+      {
+        "text": "{\"answer\": \"请填写分析结果\", \"solution\": [\"计算f(x,y)关于x的一阶偏导数fx(x,y)。\", \"应用乘积法则和链式法则计算f(x,y)关于x的一阶偏导数。\", \"将x=1,y=1代入计算得到fx(1,1)。\"], \"knowledge_points\": [\"一阶偏导数的计算\", \"乘积法则\", \"链式法则\"], \"error_type\": \"concept_misunderstanding\", \"error_type_label\": \"概念不清\", \"error_confidence\": 0.8, \"error_reason\": \"学生未能正确应用乘积法则和链式法则计算一阶偏导数。\", \"suggestions\": [\"复习一阶偏导数的计算方法。\", \"练习乘积法则和链式法则的应用。\", \"检查并理解每个步骤的计算过程。\"]}",
+        "reason": "data.answer: placeholder_text is not an actual answer"
+      }
+    ]
+  }
+}

@@ -530,6 +530,41 @@ def main():
           "已剔除" in ai.render_content("error_analysis", fixed),
           ai.render_content("error_analysis", fixed).split("\n")[0])
 
+    # ---- v2-9：动态加载必须真的生效，不能被兜底常量掩盖 ----
+    # 队长 v2.2 第四节第 1 条：原路径 parents[1] 拼出 src/vendor/... 不存在，
+    # 一直走兜底；而兜底值恰好等于包里的示例值，所以"读到旧文案"的断言
+    # 在路径错误时也照样通过。这里复制一份包、改掉示例值，验证真能读到新值。
+    print("\n[v2-9] 占位符动态加载：换掉包内示例值，必须读到新值")
+    import shutil, tempfile
+    from pathlib import Path as _P
+    _orig_pkg = ai.CAPTAIN_PKG_DIR
+    _orig_cache = ai._PLACEHOLDERS
+    _tmp = tempfile.mkdtemp(prefix="capshape_")
+    try:
+        for _f in ("captain_ai.py", "study_context.py"):
+            shutil.copy2(_P(_orig_pkg) / _f, _P(_tmp) / _f)
+        _src = (_P(_tmp) / "captain_ai.py").read_text(encoding="utf-8")
+        _marker = "占位探针XYZ"
+        check("原包里确实有示例值可替换", "请填写分析结果" in _src)
+        (_P(_tmp) / "captain_ai.py").write_text(
+            _src.replace("请填写分析结果", _marker), encoding="utf-8")
+        ai.CAPTAIN_PKG_DIR = _tmp
+        ai._PLACEHOLDERS = None
+        _ph = ai.gateway_placeholders()
+        check("读到改写后的示例值（证明不是兜底在起作用）",
+              _marker in _ph, str(_ph))
+        check("兜底值仍保留（兼容旧网关）",
+              "请填写分析结果" in _ph, str(_ph))
+        # 路径解析本身也要对
+        check("CAPTAIN_PKG_DIR 指向真实存在的包",
+              _P(_orig_pkg).is_dir(), _orig_pkg)
+        check("包内 captain_ai.py 存在",
+              (_P(_orig_pkg) / "captain_ai.py").is_file())
+    finally:
+        ai.CAPTAIN_PKG_DIR = _orig_pkg
+        ai._PLACEHOLDERS = _orig_cache
+        shutil.rmtree(_tmp, ignore_errors=True)
+
     print("\n" + "=" * 64)
     if _failures:
         print(f"❌ {len(_failures)} 项未通过：")

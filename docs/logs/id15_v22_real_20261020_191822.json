@@ -1,0 +1,78 @@
+{
+ "item_id": 15,
+ "db": "D:\\bigcreat_project\\data\\learning_test_v22.db",
+ "gateway": "http://127.0.0.1:8765/ai",
+ "note": "题干为 OCR 残片未经原图核对，仅验证协议行为，不评估解题正确性",
+ "stem": "1. 设f(x,y)=x3y+e−sin(x²−y2),则fx(1,1)=l+e\n-2x\n2y\nx+y\n2\nx+y，则\n(x-y/^2+(x+y)2}",
+ "student_answer": null,
+ "runs": [
+  {
+   "run": 1,
+   "elapsed_s": 11.2,
+   "envelope": {
+    "code": 1,
+    "scene": "error_analysis",
+    "data": null,
+    "raw": {
+     "text": "{\"answer\": \"\", \"solution\": [\"首先计算f(x,y)关于x的一阶偏导数fx(x,y)。\", \"f(x,y) = x³y + e^(-sin(x² - y²))\", \"对x求偏导：\", \"fx(x,y) = 3x²y - 2xe^(-sin(x² - y²))cos(x² - y²)\", \"将x=1, y=1代入：\", \"fx(1,1) = 3*1²*1 - 2*1*e^(-sin(1² - 1²))cos(1² - 1²)\", \"简化得：\", \"fx(1,1) = 3 - 2e^0cos0 = 3 - 2 = 1\"], \"knowledge_points\": [\"一元函数求导\", \"多元函数偏导数\", \"三角函数与指数函数求导\"], \"error_type\": \"concept_misunderstanding\", \"error_type_label\": \"概念不清\", \"error_confidence\": 0.8, \"error_reason\": \"学生混淆了一元函数求导与多元函数偏导数的概念，错误地将x的偏导数计算为2x。\", \"suggestions\": [\"复习多元函数偏导数的计算方法\", \"区分一元函数与多元函数的求导规则\", \"多做偏导数的练习题\"]}",
+     "reason": "data.answer: empty text",
+     "retried": 1,
+     "attempts": [
+      {
+       "text": "{\"answer\": \"请填写分析结果\", \"solution\": [\"计算f(x,y)关于x的一阶偏导数fx(x,y)。\", \"应用乘积法则和链式法则计算f(x,y)关于x的一阶偏导数。\", \"将x=1,y=1代入计算得到fx(1,1)。\"], \"knowledge_points\": [\"一元函数微分\", \"多元函数偏导数\", \"乘积法则\", \"链式法则\"], \"error_type\": \"concept_misunderstanding\", \"error_type_label\": \"概念不清\", \"error_confidence\": 0.8, \"error_reason\": \"学生未能正确应用乘积法则和链式法则计算偏导数。\", \"suggestions\": [\"复习一元函数微分和多元函数偏导数的基本概念。\", \"练习应用乘积法则和链式法则计算偏导数。\", \"检查并理解偏导数的计算步骤。\"]}",
+       "reason": "data.answer: placeholder_text is not an actual answer"
+      },
+      {
+       "text": "{\"answer\": \"\", \"solution\": [\"首先计算f(x,y)关于x的一阶偏导数fx(x,y)。\", \"f(x,y) = x³y + e^(-sin(x² - y²))\", \"对x求偏导：\", \"fx(x,y) = 3x²y - 2xe^(-sin(x² - y²))cos(x² - y²)\", \"将x=1, y=1代入：\", \"fx(1,1) = 3*1²*1 - 2*1*e^(-sin(1² - 1²))cos(1² - 1²)\", \"简化得：\", \"fx(1,1) = 3 - 2e^0cos0 = 3 - 2 = 1\"], \"knowledge_points\": [\"一元函数求导\", \"多元函数偏导数\", \"三角函数与指数函数求导\"], \"error_type\": \"concept_misunderstanding\", \"error_type_label\": \"概念不清\", \"error_confidence\": 0.8, \"error_reason\": \"学生混淆了一元函数求导与多元函数偏导数的概念，错误地将x的偏导数计算为2x。\", \"suggestions\": [\"复习多元函数偏导数的计算方法\", \"区分一元函数与多元函数的求导规则\", \"多做偏导数的练习题\"]}",
+       "reason": "data.answer: empty text"
+      }
+     ]
+    },
+    "model": "qwen2.5:7b-instruct-q4_K_M",
+    "elapsed_ms": 11150,
+    "protocol": {
+     "version": "2026-10-19-captain-gateway-v2.2",
+     "schema_version": "2026-10-09-captain-schema-v2",
+     "code2": "请求字段错误；修改请求后才能重新提交，不自动重试",
+     "retry_owner": "gateway",
+     "max_output_retries": 1
+    }
+   },
+   "raw_text": "{\"answer\": \"\", \"solution\": [\"首先计算f(x,y)关于x的一阶偏导数fx(x,y)。\", \"f(x,y) = x³y + e^(-sin(x² - y²))\", \"对x求偏导：\", \"fx(x,y) = 3x²y - 2xe^(-sin(x² - y²))cos(x² - y²)\", \"将x=1, y=1代入：\", \"fx(1,1) = 3*1²*1 - 2*1*e^(-sin(1² - 1²))cos(1² - 1²)\", \"简化得：\", \"fx(1,1) = 3 - 2e^0cos0 = 3 - 2 = 1\"], \"knowledge_points\": [\"一元函数求导\", \"多元函数偏导数\", \"三角函数与指数函数求导\"], \"error_type\": \"concept_misunderstanding\", \"error_type_label\": \"概念不清\", \"error_confidence\": 0.8, \"error_reason\": \"学生混淆了一元函数求导与多元函数偏导数的概念，错误地将x的偏导数计算为2x。\", \"suggestions\": [\"复习多元函数偏导数的计算方法\", \"区分一元函数与多元函数的求导规则\", \"多做偏导数的练习题\"]}"
+  },
+  {
+   "run": 2,
+   "elapsed_s": 10.7,
+   "envelope": {
+    "code": 1,
+    "scene": "error_analysis",
+    "data": null,
+    "raw": {
+     "text": "{\"answer\": \"\", \"solution\": [\"首先计算f(x,y)关于x的一阶偏导数fx(x,y)。\", \"f(x,y) = x³y + e^(-sin(x² - y²))\", \"对x求偏导：\", \"fx(x,y) = 3x²y - 2xe^(-sin(x² - y²))cos(x² - y²)\", \"将x=1, y=1代入：\", \"fx(1,1) = 3*1²*1 - 2*1*e^(-sin(1² - 1²))cos(1² - 1²)\", \"简化得：\", \"fx(1,1) = 3 - 2e^0cos0 = 3 - 2 = 1\"], \"knowledge_points\": [\"一元函数求导\", \"多元函数偏导数\", \"三角函数与指数函数求导\"], \"error_type\": \"concept_misunderstanding\", \"error_type_label\": \"概念不清\", \"error_confidence\": 0.8, \"error_reason\": \"学生混淆了一元函数求导与多元函数偏导数的概念，错误地将x的偏导数计算为2x。\", \"suggestions\": [\"复习多元函数偏导数的计算方法\", \"区分一元函数与多元函数的求导规则\", \"多做偏导数的练习题\"]}",
+     "reason": "data.answer: empty text",
+     "retried": 1,
+     "attempts": [
+      {
+       "text": "{\"answer\": \"请填写分析结果\", \"solution\": [\"计算f(x,y)关于x的一阶偏导数fx(x,y)。\", \"应用乘积法则和链式法则计算f(x,y)关于x的一阶偏导数。\", \"将x=1和y=1代入计算得到fx(1,1)。\"], \"knowledge_points\": [\"一元函数微分\", \"多元函数偏导数\", \"乘积法则\", \"链式法则\"], \"error_type\": \"concept_misunderstanding\", \"error_type_label\": \"概念不清\", \"error_confidence\": 0.8, \"error_reason\": \"学生未能正确应用乘积法则和链式法则计算偏导数。\", \"suggestions\": [\"复习一元函数微分和多元函数偏导数的基本概念。\", \"练习应用乘积法则和链式法则计算偏导数。\", \"检查并理解偏导数的计算步骤。\"]}",
+       "reason": "data.answer: placeholder_text is not an actual answer"
+      },
+      {
+       "text": "{\"answer\": \"\", \"solution\": [\"首先计算f(x,y)关于x的一阶偏导数fx(x,y)。\", \"f(x,y) = x³y + e^(-sin(x² - y²))\", \"对x求偏导：\", \"fx(x,y) = 3x²y - 2xe^(-sin(x² - y²))cos(x² - y²)\", \"将x=1, y=1代入：\", \"fx(1,1) = 3*1²*1 - 2*1*e^(-sin(1² - 1²))cos(1² - 1²)\", \"简化得：\", \"fx(1,1) = 3 - 2e^0cos0 = 3 - 2 = 1\"], \"knowledge_points\": [\"一元函数求导\", \"多元函数偏导数\", \"三角函数与指数函数求导\"], \"error_type\": \"concept_misunderstanding\", \"error_type_label\": \"概念不清\", \"error_confidence\": 0.8, \"error_reason\": \"学生混淆了一元函数求导与多元函数偏导数的概念，错误地将x的偏导数计算为2x。\", \"suggestions\": [\"复习多元函数偏导数的计算方法\", \"区分一元函数与多元函数的求导规则\", \"多做偏导数的练习题\"]}",
+       "reason": "data.answer: empty text"
+      }
+     ]
+    },
+    "model": "qwen2.5:7b-instruct-q4_K_M",
+    "elapsed_ms": 10720,
+    "protocol": {
+     "version": "2026-10-19-captain-gateway-v2.2",
+     "schema_version": "2026-10-09-captain-schema-v2",
+     "code2": "请求字段错误；修改请求后才能重新提交，不自动重试",
+     "retry_owner": "gateway",
+     "max_output_retries": 1
+    }
+   },
+   "raw_text": "{\"answer\": \"\", \"solution\": [\"首先计算f(x,y)关于x的一阶偏导数fx(x,y)。\", \"f(x,y) = x³y + e^(-sin(x² - y²))\", \"对x求偏导：\", \"fx(x,y) = 3x²y - 2xe^(-sin(x² - y²))cos(x² - y²)\", \"将x=1, y=1代入：\", \"fx(1,1) = 3*1²*1 - 2*1*e^(-sin(1² - 1²))cos(1² - 1²)\", \"简化得：\", \"fx(1,1) = 3 - 2e^0cos0 = 3 - 2 = 1\"], \"knowledge_points\": [\"一元函数求导\", \"多元函数偏导数\", \"三角函数与指数函数求导\"], \"error_type\": \"concept_misunderstanding\", \"error_type_label\": \"概念不清\", \"error_confidence\": 0.8, \"error_reason\": \"学生混淆了一元函数求导与多元函数偏导数的概念，错误地将x的偏导数计算为2x。\", \"suggestions\": [\"复习多元函数偏导数的计算方法\", \"区分一元函数与多元函数的求导规则\", \"多做偏导数的练习题\"]}"
+  }
+ ]
+}

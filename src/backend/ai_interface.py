@@ -1027,21 +1027,44 @@ _FALLBACK_PLACEHOLDER = "请填写分析结果"      # 实测到的值；包不�
 
 
 def gateway_placeholders() -> set:
-    """取网关示例里的占位文本。优先从包里现读，读不到才用实测兜底值。"""
+    """取网关示例里的占位文本。从包里现读，读不到才用实测兜底值。
+
+    ⚠️ 队长 v2.2 第四节第 1 条：原实现用 ``Path(__file__).parents[1]``，
+    从 src/backend/ai_interface.py 算出来是 ``src/``，拼出
+    ``src/vendor/captain_ai_v2`` —— 该目录不存在，于是永远走兜底常量。
+    兜底值恰好等于包里的示例值，测试"读到旧文案"照样通过，把路径 bug 盖住了。
+    现改为复用 CAPTAIN_PKG_DIR（项目根 vendor 下），并用 importlib 以私有
+    模块名加载，既不污染 sys.path 也不与已导入的 captain_ai 撞名。
+    """
     global _PLACEHOLDERS
     if _PLACEHOLDERS is not None:
         return _PLACEHOLDERS
     vals: set = set()
-    try:
-        pkg = Path(__file__).resolve().parents[1] / "vendor" / "captain_ai_v2"
-        if pkg.is_dir():
+    pkg = Path(CAPTAIN_PKG_DIR)
+    mod_file = pkg / "captain_ai.py"
+    if mod_file.is_file():
+        added = str(pkg) not in sys.path
+        if added:
             sys.path.insert(0, str(pkg))
-            import captain_ai as _cap               # noqa: E402
-            v = _cap.output_shape({"type": "string"})
+        try:
+            import importlib.util
+            # 私有模块名 + 每次重新 exec：避免 sys.modules 缓存住了旧包
+            spec = importlib.util.spec_from_file_location(
+                "_captain_shape_probe", str(mod_file))
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            v = mod.output_shape({"type": "string"})
             if isinstance(v, str) and v.strip():
                 vals.add(v.strip())
-    except Exception:
-        pass
+        except Exception:
+            pass                                    # 读不到就退回兜底，不打断调用链
+        finally:
+            if added:
+                try:
+                    sys.path.remove(str(pkg))
+                except ValueError:
+                    pass
+    # 兜底值始终保留：网关可能仍是旧版本，示例文案未必与现包一致
     vals.add(_FALLBACK_PLACEHOLDER)
     _PLACEHOLDERS = vals
     return vals
@@ -1413,7 +1436,10 @@ def apply_no_answer_rule(data: dict, student_answer: Any,
     if not isinstance(data, dict) or not student_answer_missing(student_answer):
         return data
     original = data.get("error_confidence")
-    if original is not None:
+    # ⚠️ 网关 v2.1 起自己也记一份 model_error_confidence（那时置信度还没被清零，
+    # 是模型的真实打分）。我侧若无条件覆盖，就会用"已被清零的 0"盖掉真值，
+    # 审计线索反而失真——所以网关给过就不再覆盖。
+    if original is not None and raw_out.get("model_error_confidence") is None:
         raw_out["model_error_confidence"] = original
     data["error_confidence"] = 0.0
     data["error_reason"] = ("[无学生作答，无法归因，置信度强制为 0] "

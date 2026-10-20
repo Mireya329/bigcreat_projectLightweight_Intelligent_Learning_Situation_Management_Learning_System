@@ -46,8 +46,16 @@ test_label_is_derived_from_valid_code (test_round3.Round3Tests.test_label_is_der
 test_missing_or_wrong_type_answer_is_not_fabricated (test_round3.Round3Tests.test_missing_or_wrong_type_answer_is_not_fabricated) ... ok
 test_nonempty_answer_never_overwritten (test_round3.Round3Tests.test_nonempty_answer_never_overwritten) ... ok
 test_other_invalid_fields_still_fail (test_round3.Round3Tests.test_other_invalid_fields_still_fail) ... ok
+test_all_schema_free_text_rejects_placeholder (test_round4.Round4Tests.test_all_schema_free_text_rejects_placeholder) ... ok
+test_empty_answer_explicit_conclusion_still_recovers (test_round4.Round4Tests.test_empty_answer_explicit_conclusion_still_recovers) ... ok
+test_empty_answer_repair_cannot_promote_placeholder (test_round4.Round4Tests.test_empty_answer_repair_cannot_promote_placeholder) ... ok
+test_http_response_has_no_usable_placeholder_data (test_round4.Round4Tests.test_http_response_has_no_usable_placeholder_data) ... ok
+test_nested_free_text_and_whitespace_rejected (test_round4.Round4Tests.test_nested_free_text_and_whitespace_rejected) ... ok
+test_placeholder_fails_after_one_retry (test_round4.Round4Tests.test_placeholder_fails_after_one_retry) ... ok
+test_retry_can_recover (test_round4.Round4Tests.test_retry_can_recover) ... ok
+test_valid_enum_and_real_answers_preserved (test_round4.Round4Tests.test_valid_enum_and_real_answers_preserved) ... ok
 
 ----------------------------------------------------------------------
-Ran 47 tests in 1.551s
+Ran 55 tests in 2.104s
 
 OK

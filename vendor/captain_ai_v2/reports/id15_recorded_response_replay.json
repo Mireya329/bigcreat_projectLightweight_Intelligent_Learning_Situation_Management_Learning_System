@@ -1,0 +1,29 @@
+{
+  "mode": "Recorded responses replayed; each is repeated for the one allowed retry. No live model or database run.",
+  "source_commit": "51865007add8ae952c7947a72ea16d0f926c32a4",
+  "source_path": "docs/logs/id15_v21_raw_20261017_200814.json",
+  "source_sha256": "593c01173ce6b9b93581bab78a4301f76330fdabaa7da76f04851f2e8136214f",
+  "results": [
+    {
+      "recorded_run": 1,
+      "code": 1,
+      "data": null,
+      "calls": 2,
+      "reason": "data.answer: placeholder_text is not an actual answer"
+    },
+    {
+      "recorded_run": 2,
+      "code": 1,
+      "data": null,
+      "calls": 2,
+      "reason": "data.answer: placeholder_text is not an actual answer"
+    },
+    {
+      "recorded_run": 3,
+      "code": 1,
+      "data": null,
+      "calls": 2,
+      "reason": "data.answer: placeholder_text is not an actual answer"
+    }
+  ]
+}

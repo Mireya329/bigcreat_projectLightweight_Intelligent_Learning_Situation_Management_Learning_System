@@ -223,3 +223,23 @@ CREATE TABLE IF NOT EXISTS ai_logs (
   created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_ailogs_scene ON ai_logs(scene, created_at);
+
+-- ---------- 12. 错题结论归档（只追加，不参与统计） ----------
+-- 队长 v2.2 第四节第 2、3 条：作答变更 / 强制重分析时，
+-- 旧的"已确认分类"必须退回待复核，但旧结论要留痕可查。
+CREATE TABLE IF NOT EXISTS error_review_history (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  error_item_id     INTEGER NOT NULL REFERENCES error_items(id) ON DELETE CASCADE,
+  event             TEXT    NOT NULL,   -- answer_changed / reanalyzed / review_changed
+  review_flag       TEXT,               -- 归档时刻的状态
+  error_type        TEXT,               -- 归档时刻的错因 code
+  error_confidence  REAL,               -- 归档时刻的置信度
+  analysis          TEXT,               -- 归档时刻的解析正文
+  wrong_answer_text TEXT,               -- 归档时刻的学生作答
+  answer_text       TEXT,               -- 归档时刻的参考答案
+  user_notes        TEXT,
+  reason            TEXT,               -- 为什么被归档（写给人看）
+  created_at        TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_review_hist_item
+  ON error_review_history(error_item_id, created_at);

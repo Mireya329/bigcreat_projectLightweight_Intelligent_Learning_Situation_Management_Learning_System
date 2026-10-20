@@ -9,7 +9,7 @@ import urllib.request
 from pathlib import Path
 from study_context import diagnose, SUBJECT_MAP
 
-PROTOCOL_VERSION = '2026-10-12-captain-gateway-v2.1'
+PROTOCOL_VERSION = '2026-10-19-captain-gateway-v2.2'
 SCHEMA_VERSION = '2026-10-09-captain-schema-v2'
 MODEL_NAME = 'qwen2.5:7b-instruct-q4_K_M'
 SUBJECTS = ('politics', 'math', 'english', 'cet4', 'cet6')
@@ -129,6 +129,10 @@ def validate(value, schema, path='data'):
     elif kind == 'string':
         if len(value.strip()) < schema.get('minLength', 0):
             raise ValueError(path + ': empty text')
+        # Only free-text placeholders are invalid, not legitimate enum examples.
+        # Keep output_shape stable for existing backend placeholder detection.
+        if 'enum' not in schema and value.strip() == output_shape({'type': 'string'}):
+            raise ValueError(path + ': placeholder_text is not an actual answer')
     elif not math.isfinite(value) or not schema.get('minimum', -math.inf) <= value <= schema.get('maximum', math.inf):
         raise ValueError(path + ': number outside allowed range')
 
