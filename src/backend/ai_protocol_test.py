@@ -440,6 +440,45 @@ def main():
           "plan_days" not in uc_err
           and "available_minutes_per_day" not in uc_err, str(uc_err))
 
+    # ---- [21b] 计划参数两入口统一（队长 v2.2 第六节遗留项，2026-10-20）----
+    # 网关 captain_ai.normalize 只在 task=='study_plan' 时校验这两个键，
+    # 非法类型 raise → code=2；此前我侧一律"改默认继续跑"，同一个请求
+    # 走网关报错、走后端成功。现在 study_plan 场景同口径拦下，其余场景
+    # 网关根本不读这两个键，故保持降级（否则反倒与网关相悖）。
+    print("\n[21b] 计划参数两入口统一：study_plan 非法类型按网关口径拒绝")
+    for bad in (True, 3.5, [3], "abc", "3天"):
+        ai.normalize_user_context({"task": "study_plan", "plan_days": bad},
+                                  scene="qa")
+        check(f"study_plan 传 plan_days={bad!r} → 记入 invalid（同网关拒绝）",
+              "plan_days" in ai.LAST_USER_CONTEXT_INVALID,
+              str(ai.LAST_USER_CONTEXT_INVALID))
+    ai.normalize_user_context({"plan_days": "abc"})
+    check("非 study_plan 场景仍降级改默认，不拦（网关也不读这两键）",
+          ai.LAST_USER_CONTEXT_INVALID == [],
+          str(ai.LAST_USER_CONTEXT_INVALID))
+    ai.normalize_user_context({"task": "study_plan", "plan_days": 99}, scene="qa")
+    check("越界只记夹取、不算类型错误",
+          ai.LAST_USER_CONTEXT_INVALID == []
+          and ai.LAST_USER_CONTEXT_NOTES["plan_days"]["生效值"] == 7,
+          str(ai.LAST_USER_CONTEXT_NOTES))
+    check("夹取记录带类别，可与类型错误区分",
+          ai.LAST_USER_CONTEXT_NOTES["plan_days"]["类别"] == "越界夹取",
+          str(ai.LAST_USER_CONTEXT_NOTES["plan_days"]))
+    ai.normalize_user_context({"task": "study_plan", "plan_days": "5"},
+                               scene="qa")
+    check("整数字符串不误伤",
+          ai.LAST_USER_CONTEXT_INVALID == []
+          and ai.LAST_USER_CONTEXT_NOTES == {},
+          str(ai.LAST_USER_CONTEXT_NOTES))
+    resp = ai.call_ai(ai.AIRequest(
+        scene="qa", subject="math", input={"question": "复习高数"},
+        user_context={"task": "study_plan", "plan_days": "3天"}))
+    check("端到端：非法类型 code=2 拦下", resp.code == 2, f"code={resp.code}")
+    check("端到端：原因与网关一致（must be an integer）",
+          "must be an integer" in (resp.raw.get("detail") or ""),
+          str(resp.raw.get("detail")))
+    check("端到端：失败不给 data", resp.data is None, str(resp.data))
+
     # ---- [22] 网关请求前置自检：本侧字段不合规时本地拦下 ----
     # 起因：择校传 {"profile": ...}、诊断传 {"stats_json": ...}，
     # 网关 input 只认 6 个 key，真打过去必然 code=2，且网关 code=2 重试无意义。

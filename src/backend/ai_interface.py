@@ -462,25 +462,39 @@ def spec_for(scene: str, task: Optional[str] = None) -> SceneSpec:
 
 # 上一次 normalize_user_context 的调整记录（给日志/排障用，不进请求体）
 LAST_USER_CONTEXT_NOTES: dict = {}
+# 上一次 normalize_user_context 判为「类型错误」的键名（网关会拒绝整个请求，
+# 我侧也拦，不能静默改默认继续跑）。每次 normalize 开头清空，别跨调用残留。
+LAST_USER_CONTEXT_INVALID: list = []
 
 
 def _coerce_plan_int(value: Any, lo: int, hi: int, default: int,
-                     name: str, notes: dict) -> int:
-    """规划参数的取值规则——队长 v2 第二节，后端与网关必须用同一套：
+                     name: str, notes: dict, strict: bool = False) -> int:
+    """规划参数的取值规则——与网关 captain_ai.py 的 study_plan 分支同一套。
 
-        None / 缺失          → 用默认值
-        明确整数             → 夹取到 [lo, hi]
-        整数形式的字符串     → 转换后夹取（"60" 可以）
-        布尔 / 小数 / 数组 / 无效字符串 → **拒绝该值**，改用默认
+        None / 缺失              → 用默认值
+        整数、整数形式的字符串   → 夹取到 [lo, hi]（网关：min(hi, max(1, v))）
+        布尔 / 小数 / 数组 / 转不成整数的字符串
+                                → strict=True（study_plan 场景）时**拒绝整个请求**；
+                                  strict=False 时改用默认，但仍记进 notes
 
-    "类型错误拒绝"而不是"夹取"，是为了不把 true、60.5 之类悄悄变成 60 或 480；
-    被拒绝和被夹取都记进 notes，保证**生效值可见**。
+    ⚠️ 2026-10-20 统一（队长 v2.2 第六节点名"两入口差异仍待统一"）：
+    此前后端一律"改默认 + 记 notes 继续跑"，而网关是 raise → code=2。
+    同一个非法输入，走网关报错、走后端静默成功，两边行为不一致。
+    现在 study_plan 场景按网关口径拦下；非 study_plan 场景网关压根不读
+    这两个键（captain_ai.py 只在 `task == 'study_plan'` 时才校验），
+    所以那里保持降级改默认，不与网关相悖。
+
+    字符串判定改用 int(s)（原来是正则），是为了连 "1_000" 这类边缘输入
+    也跟网关一致——网关用的就是 int()。
     """
     if value is None:
         return default
 
     def reject(why):
-        notes[name] = {"给定值": value, "生效值": default, "原因": why}
+        notes[name] = {"给定值": value, "生效值": default,
+                       "原因": why, "类别": "类型错误"}
+        if strict:
+            LAST_USER_CONTEXT_INVALID.append(name)
         return default
 
     if isinstance(value, bool):
@@ -490,17 +504,17 @@ def _coerce_plan_int(value: Any, lo: int, hi: int, default: int,
     elif isinstance(value, float):
         return reject("小数不是有效整数")
     elif isinstance(value, str):
-        s = value.strip()
-        if re.fullmatch(r"[+-]?\d+", s):
-            v = int(s)
-        else:
+        try:
+            v = int(value)          # 与网关一致：能转整数就收，" 60 " 也收
+        except ValueError:
             return reject("字符串不是整数形式")
     else:
         return reject(f"类型 {type(value).__name__} 不是有效数字")
 
     clamped = min(max(v, lo), hi)
     if clamped != v:
-        notes[name] = {"给定值": v, "生效值": clamped, "原因": "超出范围已夹取"}
+        notes[name] = {"给定值": v, "生效值": clamped,
+                       "原因": "超出范围已夹取", "类别": "越界夹取"}
     return clamped
 
 
@@ -517,11 +531,14 @@ def normalize_user_context(uc: Optional[dict], scene: Optional[str] = None) -> d
     实测把 id15 的成功请求（占位符答案）拖成了 4/4 失败（空答案）。
     现在只有 study_plan 场景、或调用方自己显式传了时才写。
     """
-    global LAST_USER_CONTEXT_NOTES
+    global LAST_USER_CONTEXT_NOTES, LAST_USER_CONTEXT_INVALID
     notes: dict = {}
+    LAST_USER_CONTEXT_INVALID = []          # 每次重算，避免上一次的结果残留
     uc = dict(uc or {})
     wants_plan = (scene == "study_plan"
                   or (uc.get("task") == "study_plan"))
+    # 只有 study_plan 才按网关口径拒绝非法类型（网关也只在这个 task 下校验）
+    strict = wants_plan
     if "task" in uc and uc["task"] not in QA_TASK_SPECS:
         # 未知 task 就当没有，走 qa 默认契约；不静默丢弃，记进 notes
         notes["task"] = {"给定值": uc["task"], "生效值": None,
@@ -532,12 +549,12 @@ def normalize_user_context(uc: Optional[dict], scene: Optional[str] = None) -> d
     if wants_plan or "plan_days" in uc:
         uc["plan_days"] = _coerce_plan_int(
             uc.get("plan_days"), PLAN_DAYS_RANGE[0], PLAN_DAYS_RANGE[1],
-            PLAN_DAYS_DEFAULT, "plan_days", notes)
+            PLAN_DAYS_DEFAULT, "plan_days", notes, strict=strict)
     if wants_plan or "available_minutes_per_day" in uc:
         uc["available_minutes_per_day"] = _coerce_plan_int(
             uc.get("available_minutes_per_day"), MINUTES_PER_DAY_RANGE[0],
             MINUTES_PER_DAY_RANGE[1], MINUTES_PER_DAY_DEFAULT,
-            "available_minutes_per_day", notes)
+            "available_minutes_per_day", notes, strict=strict)
 
     LAST_USER_CONTEXT_NOTES = notes
     if notes:
@@ -1293,6 +1310,28 @@ def call_ai(req: AIRequest) -> AIResponse:
             model=MODEL_NAME,
             error=("请求字段错误（code=2）：input.student_answer 与 "
                    "user_context.student_answer 内容不一致，请只保留一处"),
+            protocol=_gateway_protocol(None) if AI_PROVIDER == "gateway" else None,
+        )
+
+    # ---- 计划参数类型错误：与网关 study_plan 分支同口径，直接拦而不降级 ----
+    # 网关在 captain_ai.normalize 里对 plan_days / available_minutes_per_day
+    # 遇到非整数就 raise → code=2。以前后端是悄悄改回默认 3/60 继续跑，
+    # 同一个请求走网关报错、走后端成功（队长 v2.2 第六节点名待统一）。
+    # 现在两边一致：非法类型一律 code=2，且**不调模型**。
+    if LAST_USER_CONTEXT_INVALID:
+        keys = "、".join(LAST_USER_CONTEXT_INVALID)
+        return AIResponse(
+            ok=False, scene=scene, content="",
+            raw={"reason": "invalid_request",
+                 "detail": f"{keys} must be an integer",
+                 "checked_by": "backend_preflight",
+                 "user_context_notes": dict(LAST_USER_CONTEXT_NOTES)},
+            elapsed_ms=_elapsed(t0), code=2, data=None,
+            model=MODEL_NAME,
+            error=(f"请求字段错误（code=2）：user_context 的 {keys} 必须是整数，"
+                   f"网关同样会拒绝。请传纯数字（plan_days 1~7、"
+                   f"available_minutes_per_day 1~480），不要用 \"3天\" 这类"
+                   f"带单位的字符串；越界的数字会被夹取，不会报错。"),
             protocol=_gateway_protocol(None) if AI_PROVIDER == "gateway" else None,
         )
 
