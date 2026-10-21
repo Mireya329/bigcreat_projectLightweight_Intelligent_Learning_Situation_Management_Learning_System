@@ -243,3 +243,38 @@ CREATE TABLE IF NOT EXISTS error_review_history (
 );
 CREATE INDEX IF NOT EXISTS idx_review_hist_item
   ON error_review_history(error_item_id, created_at);
+
+-- ---------- 13. 公开真题题库（区别于错题本 error_items） ----------
+-- 4 号《题库资料对接说明》2026-10-21：554 个文件 / 236 套卷需要落库。
+-- error_items 是学生的错题本，公开真题无处导入，故单列此表。
+-- 字段以 4 号建议为准，补了 no_in_paper/section/text_source/text_chars/derived
+-- （理由见 db/migrate_question_bank.py 的 docstring）。
+-- ⚠️ text_source='empty' 表示该 PDF 是扫描件、一个字也没提出来：
+--    实测样本 18 个 PDF 里 10 个是这样，其中 9 个是解析 PDF。
+CREATE TABLE IF NOT EXISTS question_bank (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  subject_code  TEXT    NOT NULL,   -- POSTGRAD_POLITICS/POSTGRAD_MATH/POSTGRAD_ENGLISH/CET4/CET6
+  year          INTEGER,            -- 考研年份；四六级为空
+  session       TEXT,               -- 四六级场次（2024-06）；考研为空
+  paper_set     INTEGER,            -- 第 N 套（四六级）；考研为 1
+  question_type TEXT,               -- choice/cloze/reading/translation/writing/compute/essay
+  no_in_paper   TEXT,               -- 卷内题号（"3" 或 "3+1"）
+  section       TEXT,               -- 大题名（Part I / 一、单项选择题）
+  question_text TEXT    NOT NULL,
+  options       TEXT,               -- JSON 数组
+  answer_text   TEXT,
+  analysis      TEXT,
+  source_file   TEXT    NOT NULL,   -- 真题 PDF 相对路径
+  analysis_file TEXT,               -- 解析 PDF 相对路径
+  audio_file    TEXT,               -- 听力 MP3 相对路径
+  text_source   TEXT    NOT NULL,   -- pdf_text / ocr / empty
+  text_chars    INTEGER NOT NULL DEFAULT 0,
+  derived       INTEGER NOT NULL DEFAULT 0,  -- 1=按选项二次切出，可靠性低
+  status        TEXT    NOT NULL DEFAULT 'draft',  -- draft/ok/rejected
+  created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+  UNIQUE (subject_code, source_file, no_in_paper)
+);
+CREATE INDEX IF NOT EXISTS idx_qbank_subject
+  ON question_bank(subject_code, year, session, paper_set);
+CREATE INDEX IF NOT EXISTS idx_qbank_status
+  ON question_bank(status, text_source);
