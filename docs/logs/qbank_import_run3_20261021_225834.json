@@ -1,0 +1,85 @@
+{
+  "run_id": "20261021_225834",
+  "database": "D:\\bigcreat_project\\data\\learning_test_qbank_v3.db",
+  "root": "D:\\bigcreat_project\\data\\question_bank_raw",
+  "dry_run": false,
+  "txn": "batch",
+  "stats": {
+    "papers": 7,
+    "pdf": 9,
+    "scanned": 2,
+    "questions": 263,
+    "inserted": 0,
+    "updated": 263,
+    "skipped_conflict": 3,
+    "failed": 0,
+    "notice": 5,
+    "no_stem": 82,
+    "badname": 0,
+    "missing_audio": 2,
+    "dup_file": 0
+  },
+  "errors": [
+    {
+      "file": "试导样本\\英语六级\\2024-06\\六级_2024-06_第1套_真题.pdf",
+      "question_no": "-",
+      "field": "audio_refs_json",
+      "level": "warn",
+      "reason": "试导样本\\英语六级\\2024-06\\六级_2024-06_第1套_听力.mp3 实为 MP4/M4A 容器（M4A ），扩展名是 .mp3 但内容不是 MP3——请四号确认是否统一转码"
+    },
+    {
+      "file": "试导样本\\英语六级\\2024-06\\六级_2024-06_第3套_真题.pdf",
+      "question_no": "-",
+      "field": "audio_refs_json",
+      "level": "warn",
+      "reason": "未找到听力音频（本套 六级_2024-06_第3套_听力.mp3 与共用 六级_2024-06_听力.mp3 都不存在）——登记待确认，未复用其他套"
+    },
+    {
+      "file": "试导样本\\英语四级\\2024-06\\四级_2024-06_第3套_真题.pdf",
+      "question_no": "-",
+      "field": "audio_refs_json",
+      "level": "warn",
+      "reason": "未找到听力音频（本套 四级_2024-06_第3套_听力.mp3 与共用 四级_2024-06_听力.mp3 都不存在）——登记待确认，未复用其他套"
+    }
+  ],
+  "conflicts": [
+    {
+      "source_question_id": "POSTGRAD_ENGLISH|ENGLISH_1|2024|1|1",
+      "source_file": "试导样本\\考研英语一\\2024\\英语一_2024_真题.pdf",
+      "question_no": "1",
+      "field": "stem/answer/explanation",
+      "reason": "库中 status=verified，非草稿态，导入不覆盖，需人工裁决",
+      "existing_value": "",
+      "incoming_value": ""
+    },
+    {
+      "source_question_id": "POSTGRAD_ENGLISH|ENGLISH_1|2024|1|2",
+      "source_file": "试导样本\\考研英语一\\2024\\英语一_2024_真题.pdf",
+      "question_no": "2",
+      "field": "stem/answer/explanation",
+      "reason": "库中 status=verified，非草稿态，导入不覆盖，需人工裁决",
+      "existing_value": "",
+      "incoming_value": ""
+    },
+    {
+      "source_question_id": "POSTGRAD_ENGLISH|ENGLISH_1|2024|1|3",
+      "source_file": "试导样本\\考研英语一\\2024\\英语一_2024_真题.pdf",
+      "question_no": "3",
+      "field": "stem/answer/explanation",
+      "reason": "库中 status=verified，非草稿态，导入不覆盖，需人工裁决",
+      "existing_value": "",
+      "incoming_value": ""
+    }
+  ],
+  "scanned_files": [
+    "试导样本\\考研政治\\2024\\政治_2024_真题.pdf（1/13 页有字）",
+    "试导样本\\考研数学二\\2022\\数学二_2022_真题.pdf（0/4 页有字）"
+  ],
+  "noise_samples": [
+    "试导样本\\考研英语一\\2024\\英语一_2024_真题.pdf#1",
+    "试导样本\\考研英语一\\2024\\英语一_2024_真题.pdf#2",
+    "试导样本\\考研英语一\\2024\\英语一_2024_真题.pdf#3",
+    "试导样本\\考研英语一\\2024\\英语一_2024_真题.pdf#4",
+    "试导样本\\考研英语一\\2024\\英语一_2024_真题.pdf#5"
+  ]
+}

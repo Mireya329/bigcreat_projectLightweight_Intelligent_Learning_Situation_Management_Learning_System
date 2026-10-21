@@ -17,9 +17,12 @@ import urllib.error
 import urllib.request
 
 BASE = "http://127.0.0.1:8021"
+EXPECT_DB = None                       # --expect-db 用来核对服务端连的是不是这个库
 for i, a in enumerate(sys.argv):
     if a == "--base" and i + 1 < len(sys.argv):
         BASE = sys.argv[i + 1]
+    if a == "--expect-db" and i + 1 < len(sys.argv):
+        EXPECT_DB = sys.argv[i + 1]
 
 PASS, FAIL = [], []
 
@@ -53,6 +56,23 @@ def confirmed_count():
     return (s.get("error") or {}).get("confirmed", 0), s
 
 
+# ⚠️ 本脚本走 HTTP 操作**正在运行的服务**：给本进程设 LEARNING_DB_PATH 不会改变
+# 服务端连的库。所以先问 /health 把服务端实际路径打印出来，对不上就停下来
+# （队长第五轮第六节的要求，2026-10-21 加）。
+try:
+    h = json.loads(urllib.request.urlopen(BASE + "/health", timeout=30).read().decode())
+except Exception as e:
+    sys.exit(f"连不上服务 {BASE}：{type(e).__name__} {e}")
+print("=" * 66)
+print(f"服务端：{BASE}")
+print(f"服务端实际数据库：{h.get('database')}（来源：{h.get('database_source')}）")
+if EXPECT_DB:
+    ok = str(h.get("database", "")).replace("\\", "/").endswith(
+        EXPECT_DB.replace("\\", "/").lstrip("./"))
+    print(f"  期望库 {EXPECT_DB} —— {'一致' if ok else '**不一致，已停止**'}")
+    if not ok:
+        sys.exit("服务端连的不是期望的数据库。请停掉服务，用 "
+                 "LEARNING_DB_PATH=<库> 重新启动，再跑本脚本。")
 print("=" * 66)
 print("待修点 2：作答变更后旧确认状态必须失效")
 

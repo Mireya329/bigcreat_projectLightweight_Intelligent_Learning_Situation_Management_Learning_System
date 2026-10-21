@@ -16,7 +16,14 @@
 
 用法：
   LEARNING_DB_PATH=<测试库> python tools/controlled_branch_test.py
+  python tools/controlled_branch_test.py --db data/learning_test_v22.db
+
+⚠️ 2026-10-21 修（队长第五轮第六节 + Q01 交接第四节指出）：
+原来后半段把 LEARNING_DB_PATH 重新设成固定的 data/learning_test_v22.db，
+等于前段读环境变量、后段又改回硬编码，两套配置。现在只有一处生效：
+--db  >  环境变量  >  默认测试库，并且在任何写库检查前打印最终绝对路径。
 """
+import argparse
 import json
 import os
 import sys
@@ -27,9 +34,19 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(ROOT, "src", "backend"))
 sys.path.insert(0, os.path.join(ROOT, "vendor", "captain_ai_v2"))
+sys.path.insert(0, os.path.join(ROOT, "src", "backend", "db"))
 
-os.environ.setdefault("LEARNING_DB_PATH",
-                      os.path.join(ROOT, "data", "learning_test_v22.db"))
+_ap = argparse.ArgumentParser()
+_ap.add_argument("--db", default=None, help="测试库路径（覆盖环境变量）")
+_args, _ = _ap.parse_known_args()
+
+# 单一配置：--db 优先，其次环境变量，最后默认测试库。
+# ⚠️ 必须在这里一次性定好，后面任何地方都不许再改（改了就是两套配置）。
+DEFAULT_TEST_DB = os.path.join(ROOT, "data", "learning_test_v22.db")
+if _args.db:
+    os.environ["LEARNING_DB_PATH"] = _args.db
+else:
+    os.environ.setdefault("LEARNING_DB_PATH", DEFAULT_TEST_DB)
 os.environ["AI_PROVIDER"] = "gateway"          # 必须在 import ai_interface 之前
 
 import captain_ai                               # noqa: E402
@@ -199,11 +216,11 @@ print()
 print("业务写入检查：失败分支不得改动库里的解析")
 os.environ["AI_PROVIDER"] = "gateway"
 os.environ["AI_GATEWAY_URL"] = f"http://127.0.0.1:{PORT}/ai"
-os.environ["LEARNING_DB_PATH"] = os.path.join(ROOT, "data", "learning_test_v22.db")
 import api as backend_api                                   # noqa: E402
-# api.py 里是把 src/backend/db 也塞进 sys.path 再 ``from db import ...`` 的
-sys.path.insert(0, os.path.join(ROOT, "src", "backend", "db"))
 import db as dbmod                                          # noqa: E402
+
+# 写库（哪怕是"检查没被写"）之前，先把最终绝对路径打印出来核对
+dbmod.announce_db(role="受控分支测试")
 conn = dbmod.get_conn()
 cur = conn.cursor()
 row = cur.execute(

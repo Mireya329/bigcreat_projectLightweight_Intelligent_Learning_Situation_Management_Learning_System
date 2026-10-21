@@ -13,6 +13,7 @@
 接口文档（自动生成）：
     http://127.0.0.1:8000/docs
 """
+import json
 import sys
 from pathlib import Path
 from typing import Optional
@@ -25,12 +26,20 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE / "db"))
 
-from db import get_conn, DB_PATH          # noqa: E402
+from db import (get_conn, DB_PATH, announce_db,   # noqa: E402
+                resolve_db_path, which_source)
 import ai_interface                       # noqa: E402
 from ocr_quality import score_text        # noqa: E402
 from study_stats import collect_stats     # noqa: E402
 
 app = FastAPI(title="学情管理系统 API", version="0.1.0")
+
+# 服务端到底连的是哪个库，必须在启动时就打印出来（队长 2026-10-21 第四节要求）：
+# 给客户端/测试脚本设 LEARNING_DB_PATH 不会改变**已启动服务**的数据库，
+# 联调前先核对这一行，别以为客户端指向测试库、服务端就会跟着变。
+@app.on_event("startup")
+def _announce_database():
+    announce_db(role="服务端")
 
 # 跨域：前端（Qwerty Learner / wrong-notebook 跑在 3000 等端口）直接 fetch 本服务时，
 # 浏览器会先发 OPTIONS 预检并校验 CORS 头，不配置会全部被拦截。
@@ -123,7 +132,8 @@ def _archive_review(cur, error_id: int, event: str, row, reason: str):
 def health():
     return {
         "status": "ok",
-        "database": str(DB_PATH),
+        "database": str(resolve_db_path()),
+        "database_source": which_source(),
         "ollama_online": ai_interface.check_ollama_alive(),
         "model": ai_interface.MODEL_NAME,
     }
@@ -704,3 +714,169 @@ def review_card(body: ReviewIn):
     conn.commit()
     conn.close()
     return {"card_id": body.card_id, **r}
+
+
+# ---------- 公开题库（question_bank）只读接口 ----------
+# 队长《给二号_Q01小批量试导交接要求》2026-10-21 第五节要我给三号"题库查询、
+# 详情、筛选、作答所需的实际接口与响应样例"。这里只做**只读查询 + 无状态判分**：
+#   · 作答记录持久化还没做——等三号确认前端作答形态再定表结构，不先承诺已可用；
+#   · 判分规则写死在 grade_answer()，单选精确比、多选集合比、主观题不自动判分。
+SUBJECT_CODES = ["POSTGRAD_POLITICS", "POSTGRAD_MATH", "POSTGRAD_ENGLISH",
+                 "CET4", "CET6"]
+QUESTION_TYPES = ["single_choice", "multi_choice", "true_false", "blank",
+                  "short_answer", "translation", "writing", "compute"]
+STATUSES = ["draft", "pending_review", "verified", "rejected"]
+
+# 主观题：不自动判分，只能给参考答案让人看
+MANUAL_TYPES = {"blank", "short_answer", "translation", "writing", "compute"}
+
+
+def _loads(v):
+    """JSON 字段取出来解析；坏值不炸接口，原样返回让前端能看出问题。"""
+    if not v:
+        return None
+    try:
+        return json.loads(v)
+    except json.JSONDecodeError:
+        return {"__raw__": v}
+
+
+def _qrow(r) -> dict:
+    return {
+        "id": r["id"],
+        "source_question_id": r["source_question_id"],
+        "subject_code": r["subject_code"],
+        "paper_variant": r["paper_variant"],
+        "year": r["year"],
+        "session": r["session"],
+        "paper_set": r["paper_set"],
+        "question_no": r["question_no"],
+        "question_type": r["question_type"],
+        "knowledge_points": _loads(r["knowledge_points_json"]),
+        "stem": r["stem"],
+        "options": _loads(r["options_json"]),
+        "answer": r["answer"],
+        "explanation": r["explanation"],
+        "source_file": r["source_file"],
+        "source_pages": _loads(r["source_pages_json"]),
+        "image_refs": _loads(r["image_refs_json"]),
+        "audio_refs": _loads(r["audio_refs_json"]),
+        "material_id": r["material_id"],
+        "status": r["status"],
+        "section": r["section"],
+        "text_source": r["text_source"],
+        "derived": r["derived"],
+    }
+
+
+@app.get("/question-bank")
+def list_questions(subject_code: str = "", paper_variant: str = "",
+                   year: Optional[int] = None, session: str = "",
+                   paper_set: Optional[int] = None, question_type: str = "",
+                   status: str = "", material_id: str = "",
+                   q: str = "", limit: int = 50, offset: int = 0):
+    """题库筛选查询。所有条件可空，limit 上限 200。"""
+    if limit < 1 or limit > 200:
+        raise HTTPException(400, "limit 必须在 1~200 之间")
+    where, args = [], []
+    for col, val in (("subject_code", subject_code), ("paper_variant", paper_variant),
+                     ("session", session), ("question_type", question_type),
+                     ("status", status), ("material_id", material_id)):
+        if val:
+            where.append(f"{col}=?")
+            args.append(val)
+    if year is not None:
+        where.append("year=?")
+        args.append(year)
+    if paper_set is not None:
+        where.append("paper_set=?")
+        args.append(paper_set)
+    if q:
+        where.append("stem LIKE ?")
+        args.append(f"%{q}%")
+    sql = "SELECT * FROM question_bank"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY id LIMIT ? OFFSET ?"
+    args += [limit, offset]
+
+    conn = get_conn()
+    cur = conn.cursor()
+    rows = cur.execute(sql, args).fetchall()
+    total = cur.execute(
+        "SELECT COUNT(*) FROM question_bank" +
+        (" WHERE " + " AND ".join(where) if where else ""), args[:-2]).fetchone()[0]
+    conn.close()
+    return {"total": total, "count": len(rows), "limit": limit, "offset": offset,
+            "items": [_qrow(r) for r in rows]}
+
+
+@app.get("/question-bank/meta")
+def question_bank_meta():
+    """枚举与计数：前端下拉框直接照这个渲染，别自己写死。"""
+    conn = get_conn()
+    cur = conn.cursor()
+    by_subject = [{"subject_code": r[0], "paper_variant": r[1], "count": r[2]}
+                  for r in cur.execute(
+                      "SELECT subject_code, paper_variant, COUNT(*) FROM"
+                      " question_bank GROUP BY subject_code, paper_variant"
+                      " ORDER BY subject_code")]
+    by_status = [{"status": r[0], "count": r[1]} for r in cur.execute(
+        "SELECT status, COUNT(*) FROM question_bank GROUP BY status")]
+    conn.close()
+    return {"subject_codes": SUBJECT_CODES, "paper_variants":
+            ["MATH_1", "MATH_2", "MATH_3", "ENGLISH_1", "ENGLISH_2"],
+            "question_types": QUESTION_TYPES, "statuses": STATUSES,
+            "manual_grade_types": sorted(MANUAL_TYPES),
+            "by_subject": by_subject, "by_status": by_status}
+
+
+@app.get("/question-bank/{qid}")
+def get_question(qid: int):
+    conn = get_conn()
+    cur = conn.cursor()
+    r = cur.execute("SELECT * FROM question_bank WHERE id=?", (qid,)).fetchone()
+    conn.close()
+    if not r:
+        raise HTTPException(404, f"题目 {qid} 不存在")
+    return _qrow(r)
+
+
+class CheckIn(BaseModel):
+    answer: str
+
+
+@app.post("/question-bank/{qid}/check")
+def check_answer(qid: int, body: CheckIn):
+    """判分。**无状态**：只比对，不写库（作答记录持久化待三号确认后另做）。
+
+    规则（与 question_bank_csv.py 的校验口径一致，改一处要改两处）：
+      单选 / 判断：去空格后精确比较字母（不分大小写）
+      多选：字母集合相等，顺序无关
+      主观题（填空/简答/翻译/写作/计算）：**不自动判分**，返回
+      correct=null 与 needs_manual=true，只把参考答案回给前端展示
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+    r = cur.execute("SELECT * FROM question_bank WHERE id=?", (qid,)).fetchone()
+    conn.close()
+    if not r:
+        raise HTTPException(404, f"题目 {qid} 不存在")
+    qtype = r["question_type"] or ""
+    expected = (r["answer"] or "").strip()
+    given = (body.answer or "").strip()
+
+    if qtype in MANUAL_TYPES or not expected:
+        return {"id": qid, "correct": None, "needs_manual": True,
+                "rule": "主观题/无参考答案，不自动判分",
+                "expected": expected or None, "given": given}
+    exp = set(expected.upper())
+    got = set(given.upper())
+    if qtype == "multi_choice":
+        correct = (got == exp) and len(given) >= 2
+        rule = "多选：字母集合相等，顺序无关"
+    else:
+        correct = expected.upper() == given.upper()
+        rule = "单选/判断：字母精确比较（不分大小写）"
+    return {"id": qid, "correct": correct, "needs_manual": False, "rule": rule,
+            "expected": expected, "given": given}

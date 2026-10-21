@@ -1,0 +1,3 @@
+﻿source_question_id,subject_code,paper_variant,year,session,paper_set,question_no,question_type,knowledge_points_json,stem,options_json,answer,explanation,source_file,source_pages_json,image_refs_json,audio_refs_json,material_id,status
+CET4|-|2024-06|1|1,CET4,,2024,2024-06,1,1,single_choice,,（听力题：题干在音频里，此处填从音频转写的题干或留空）,"[""A) He is a teacher"", ""B) He is a driver"", ""C) He is a doctor"", ""D) He is a cook""]",A,,试导样本/英语四级/2024-06/四级_2024-06_第1套_真题.pdf,[1],,"[""试导样本/英语四级/2024-06/四级_2024-06_第1套_听力.mp3""]",四级|2024-06|listening|四级_2024-06_第1套,draft
+POSTGRAD_MATH|MATH_2|2022|1|1,POSTGRAD_MATH,MATH_2,2022,,1,1,single_choice,,（数学真题为扫描件，此处由人工转写）,"[""A) 0"", ""B) 1"", ""C) 2"", ""D) 不存在""]",B,,考研数学二/2022/数学二_2022_真题.pdf,[1],,,,draft

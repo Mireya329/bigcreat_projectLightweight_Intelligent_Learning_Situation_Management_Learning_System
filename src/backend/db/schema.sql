@@ -245,36 +245,78 @@ CREATE INDEX IF NOT EXISTS idx_review_hist_item
   ON error_review_history(error_item_id, created_at);
 
 -- ---------- 13. 公开真题题库（区别于错题本 error_items） ----------
+-- 迁移版本记录：重复执行迁移时用它判断是否已跑过（队长 2026-10-21 第四节）。
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version    TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  applied_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  note       TEXT
+);
+
 -- 4 号《题库资料对接说明》2026-10-21：554 个文件 / 236 套卷需要落库。
 -- error_items 是学生的错题本，公开真题无处导入，故单列此表。
--- 字段以 4 号建议为准，补了 no_in_paper/section/text_source/text_chars/derived
--- （理由见 db/migrate_question_bank.py 的 docstring）。
+-- v2（2026-10-21）字段名对齐《题目主数据字段模板_待二号确认.csv》19 列，
+-- 并补 source_question_id / paper_variant / 页码 / 图片 / 音频 / 共享材料等。
+-- v1 -> v2 字段映射见 db/migrate_question_bank_v2.py 的 CARRY 与 docstring。
 -- ⚠️ text_source='empty' 表示该 PDF 是扫描件、一个字也没提出来：
 --    实测样本 18 个 PDF 里 10 个是这样，其中 9 个是解析 PDF。
 CREATE TABLE IF NOT EXISTS question_bank (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  subject_code  TEXT    NOT NULL,   -- POSTGRAD_POLITICS/POSTGRAD_MATH/POSTGRAD_ENGLISH/CET4/CET6
-  year          INTEGER,            -- 考研年份；四六级为空
-  session       TEXT,               -- 四六级场次（2024-06）；考研为空
-  paper_set     INTEGER,            -- 第 N 套（四六级）；考研为 1
-  question_type TEXT,               -- choice/cloze/reading/translation/writing/compute/essay
-  no_in_paper   TEXT,               -- 卷内题号（"3" 或 "3+1"）
-  section       TEXT,               -- 大题名（Part I / 一、单项选择题）
-  question_text TEXT    NOT NULL,
-  options       TEXT,               -- JSON 数组
-  answer_text   TEXT,
-  analysis      TEXT,
-  source_file   TEXT    NOT NULL,   -- 真题 PDF 相对路径
-  analysis_file TEXT,               -- 解析 PDF 相对路径
-  audio_file    TEXT,               -- 听力 MP3 相对路径
-  text_source   TEXT    NOT NULL,   -- pdf_text / ocr / empty
-  text_chars    INTEGER NOT NULL DEFAULT 0,
-  derived       INTEGER NOT NULL DEFAULT 0,  -- 1=按选项二次切出，可靠性低
-  status        TEXT    NOT NULL DEFAULT 'draft',  -- draft/ok/rejected
-  created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
-  UNIQUE (subject_code, source_file, no_in_paper)
+  id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_question_id    TEXT    NOT NULL UNIQUE,  -- 稳定主键，跨批次定位同一题
+  subject_code          TEXT    NOT NULL,  -- 五类：POSTGRAD_POLITICS/POSTGRAD_MATH/
+                                           -- POSTGRAD_ENGLISH/CET4/CET6
+  paper_variant         TEXT,              -- MATH_1/MATH_2/MATH_3/ENGLISH_1/ENGLISH_2
+  year                  INTEGER,           -- 考研年份；四六级为空
+  session               TEXT,              -- 四六级场次（2024-06）；考研为空
+  paper_set             INTEGER,           -- 第 N 套（四六级）
+  question_no           TEXT    NOT NULL,  -- 卷内题号，含子题（"36" / "36(1)"）
+  question_type         TEXT,              -- single_choice/multi_choice/blank/
+                                           -- translation/writing/compute/answer
+  knowledge_points_json TEXT,              -- JSON 数组
+  stem                  TEXT    NOT NULL,  -- 题干；听力题题干在音频里时为空串
+  options_json          TEXT,              -- JSON 数组 ["A) ...", "B) ..."]
+  answer                TEXT,              -- 参考答案；主观题存文字答案
+  explanation           TEXT,              -- 解析
+  source_file           TEXT    NOT NULL,  -- 真题 PDF 相对路径（相对题库根目录）
+  source_pages_json     TEXT,              -- PDF 页序数组，从 1 开始，如 [3,4]
+  image_refs_json       TEXT,              -- 图片相对路径数组
+  audio_refs_json       TEXT,              -- 音频相对路径数组
+  material_id           TEXT,              -- 共享材料标识（共用听力 / 共用阅读文章）
+  status                TEXT    NOT NULL DEFAULT 'draft',  -- draft/pending_review/verified/rejected
+  -- 以下为二号补充的溯源与审计字段
+  section               TEXT,              -- 大题名（Part I / 一、单项选择题）
+  analysis_file         TEXT,              -- 解析 PDF 相对路径（答案来源，需人工核对）
+  print_page            TEXT,              -- 印刷页码（与 PDF 页序不同，另存）
+  file_sha256           TEXT,              -- 来源文件指纹，文件级去重
+  text_source           TEXT    NOT NULL DEFAULT 'unknown',  -- pdf_text/ocr/manual/empty
+  text_chars            INTEGER NOT NULL DEFAULT 0,
+  derived               INTEGER NOT NULL DEFAULT 0,  -- 1=按选项二次切出，可靠性低
+  review_note           TEXT,
+  created_at            TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at            TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+  UNIQUE (subject_code, source_file, question_no)
 );
-CREATE INDEX IF NOT EXISTS idx_qbank_subject
-  ON question_bank(subject_code, year, session, paper_set);
+CREATE INDEX IF NOT EXISTS idx_qbank_lookup
+  ON question_bank(subject_code, paper_variant, year, session, paper_set);
 CREATE INDEX IF NOT EXISTS idx_qbank_status
   ON question_bank(status, text_source);
+CREATE INDEX IF NOT EXISTS idx_qbank_material
+  ON question_bank(material_id);
+
+-- 导入待处理清单：与已人工核对内容冲突时**不覆盖**，改记到这里等人裁决
+-- （队长 2026-10-21 第四节：不能悄悄覆盖已人工核对的内容）。
+CREATE TABLE IF NOT EXISTS question_bank_conflicts (
+  id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id             TEXT,            -- 同一次导入的批次号
+  source_question_id TEXT,
+  source_file        TEXT,
+  question_no        TEXT,
+  field              TEXT,            -- 冲突字段
+  reason             TEXT NOT NULL,   -- 为什么进待处理
+  existing_value     TEXT,
+  incoming_value     TEXT,
+  state              TEXT NOT NULL DEFAULT 'open',   -- open/resolved
+  created_at         TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_qbank_conflict_state
+  ON question_bank_conflicts(state, created_at);

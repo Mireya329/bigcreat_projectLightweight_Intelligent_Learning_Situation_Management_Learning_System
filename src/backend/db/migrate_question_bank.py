@@ -1,5 +1,14 @@
 # -*- coding: utf-8 -*-
-"""迁移：新增 question_bank（公开真题题库表）。
+"""迁移：新增 question_bank（公开真题题库表）——**已由 v2 取代，勿再用**。
+
+⚠️ 本文件建的是 v1 结构：字段名（question_text / options / no_in_paper /
+audio_file）与四号《题目主数据字段模板》不一致，且没有卷型、页码、图片音频
+引用、共享材料标识。新库与升级都用：
+
+    python src/backend/db/migrate_question_bank_v2.py
+
+（v1 -> v2 会把旧表改名留档、搬完数据核对行数一致后才删，不静默丢数据。）
+保留本文件只为追溯 v1 的来历。
 
 背景（4 号《题库资料对接说明》2026-10-21 第二节）：
     error_items 是**错题本**（学生自己的错了的题），公开真题无处导入。
