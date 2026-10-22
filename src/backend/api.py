@@ -303,6 +303,10 @@ def set_answer(error_id: int, body: AnswerIn):
                             "学生/参考答案被修改，原已确认分类退回待复核")
             invalidated = True
         cur.execute(
+            # ⚠️ 队长第五轮回复第二节第 2 条：这里**只**把 confirmed 退回
+            # pending_review，其他状态（NULL / pending_review / rejected）
+            # 一律保持原值。想让其他状态也统一退回，需要先确定迁移口径再改，
+            # 不要顺手扩大范围——改了就得同步改统计口径和测试。
             "UPDATE error_items SET wrong_answer_text=?, answer_text=?,"
             " review_flag=CASE WHEN review_flag='confirmed'"
             " THEN 'pending_review' ELSE review_flag END,"
@@ -313,16 +317,24 @@ def set_answer(error_id: int, body: AnswerIn):
         "SELECT review_flag, error_type, wrong_answer_text, answer_text"
         " FROM error_items WHERE id=?", (error_id,)).fetchone()
     conn.close()
+    # note 要跟上面的 SQL 说同一件事，别让人以为"改了作答就一定退回待复核"。
+    # 归档与否看【有没有旧结论】，状态是否回退看【原来是不是 confirmed】，两回事。
+    if invalidated:
+        if before["review_flag"] == "confirmed":
+            note = "作答已变更：已确认分类退回待复核，旧结论已归档"
+        else:
+            note = (f"作答已变更：旧结论已归档，但该条原本未确认"
+                    f"（review_flag={before['review_flag']}），状态保持原值")
+    else:
+        note = ("内容未变化，状态不变" if not changed else
+                "内容已更新：原本无旧结论，不产生归档")
     return {"id": error_id,
             "answer_recorded": bool(row["wrong_answer_text"]),
             "reference_answer_recorded": bool(row["answer_text"]),
             "changed": changed,
             "review_flag": row["review_flag"],
             "previous_conclusion_invalidated": invalidated,
-            "note": ("作答内容已变更，已确认分类退回待复核，旧结论已归档"
-                     if invalidated else
-                     ("内容未变化，状态不变" if not changed else
-                      "内容已更新（该条原本就没有已确认分类）"))}
+            "note": note}
 
 
 class ReviewIn(BaseModel):

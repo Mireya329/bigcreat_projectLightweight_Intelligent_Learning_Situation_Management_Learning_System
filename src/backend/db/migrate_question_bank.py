@@ -32,7 +32,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from db import get_conn, DB_PATH          # noqa: E402
+import db as _dbconf                                     # noqa: E402
+_dbconf.apply_cli_db()      # 让 --db 生效；不调这句会静默写到默认正式库
+from db import get_conn, resolve_db_path                   # noqa: E402
+DB_PATH = _dbconf.resolve_db_path()   # apply 之后再取，才是命令行给的那个          # noqa: E402
 
 DDL = """
 CREATE TABLE IF NOT EXISTS question_bank (
@@ -77,9 +80,17 @@ def table_exists(cur) -> bool:
 
 
 def main():
+    # argparse 认下 --db 还不够，必须交给 db 层；模块顶那条 DB_PATH 是 import
+    # 时按默认值算的，这里要重新解析一次，打印出来的才是真正要操作的库。
+    global DB_PATH
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="只检查不建表")
+    ap.add_argument("--db", dest="db", default=None,
+                    help="指定数据库绝对路径（不给则用默认正式库）")
     args = ap.parse_args()
+    if args.db:
+        _dbconf.set_cli_db(args.db)
+        DB_PATH = _dbconf.resolve_db_path()
 
     conn = get_conn()
     cur = conn.cursor()

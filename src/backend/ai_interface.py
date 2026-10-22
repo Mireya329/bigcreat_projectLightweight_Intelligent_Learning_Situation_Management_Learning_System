@@ -1044,14 +1044,28 @@ _FALLBACK_PLACEHOLDER = "请填写分析结果"      # 实测到的值；包不�
 
 
 def gateway_placeholders() -> set:
-    """取网关示例里的占位文本。从包里现读，读不到才用实测兜底值。
+    """取网关示例里的占位文本。从包里读，读不到才用实测兜底值。
 
     ⚠️ 队长 v2.2 第四节第 1 条：原实现用 ``Path(__file__).parents[1]``，
     从 src/backend/ai_interface.py 算出来是 ``src/``，拼出
     ``src/vendor/captain_ai_v2`` —— 该目录不存在，于是永远走兜底常量。
     兜底值恰好等于包里的示例值，测试"读到旧文案"照样通过，把路径 bug 盖住了。
     现改为复用 CAPTAIN_PKG_DIR（项目根 vendor 下），并用 importlib 以私有
-    模块名加载，既不污染 sys.path 也不与已导入的 captain_ai 撞名。
+    模块名 ``_captain_shape_probe`` 加载，绕开 ``sys.modules`` 里已导入的
+    captain_ai，避免两者撞名。
+
+    ⚠️ 队长第五轮回复第二节指出我的描述不准，实测成立，**以下是准确行为**：
+
+    - **结果只在进程内首次调用时算一次**，之后由模块级 ``_PLACEHOLDERS``
+      缓存直接返回，**不会每次重新读包**；
+    - 加载过程中会**临时**把包目录插入 ``sys.path``，执行完再 remove。
+      调用返回时目录已不在 sys.path 里（实测为 False），但过程中确实动过；
+    - 由此产生的后果（2026-10-22 实测）：**换了新的网关包而不重启进程，
+      本函数根本感知不到**。实验方法——同进程内先调用一次建立缓存，
+      再把包里的示例值改成探针串，再次调用仍返回旧值；只有重启后才读到新包。
+      所以**替换/升级 vendor 包之后必须重启后端**，热替换对这条路径无效；
+    - 兜底值 ``_FALLBACK_PLACEHOLDER`` 始终并入结果集，用于旧版网关兼容，
+      但正因为它的值恰好等于包内示例值，历史上掩盖了上面的路径 bug。
     """
     global _PLACEHOLDERS
     if _PLACEHOLDERS is not None:

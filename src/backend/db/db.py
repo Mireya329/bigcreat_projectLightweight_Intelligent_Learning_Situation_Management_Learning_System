@@ -21,6 +21,7 @@
 """
 from pathlib import Path
 import os
+import sys
 import sqlite3
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -55,6 +56,30 @@ def which_source(cli: str | os.PathLike | None = None) -> str:
     if os.environ.get("LEARNING_DB_PATH"):
         return "环境变量 LEARNING_DB_PATH"
     return "默认（正式库）"
+
+
+def apply_cli_db(argv: list | None = None) -> bool:
+    """从命令行参数里认出 ``--db 路径`` / ``--db=路径`` 并立刻生效。
+
+    2026-10-22 加：实测发现 migrate_review_history.py 之类的脚本**压根不认
+    --db** ——  ``DB_PATH`` 是 import 时就固化的默认值，跑
+    ``python migrate_review_history.py --db 别的库.db`` 时参数被无视，
+    脚本照样写到正式库，而且一句提示都没有（最危险的一类 bug：以为在做 A，
+    实际在做 B）。所以统一在各脚本 import db 之后、正式用库之前调一次。
+
+    返回：是否真的从命令行拿到了 --db。
+    """
+    argv = list(sys.argv[1:] if argv is None else argv)
+    for i, a in enumerate(argv):
+        val = None
+        if a == "--db" and i + 1 < len(argv):
+            val = argv[i + 1]
+        elif a.startswith("--db="):
+            val = a.split("=", 1)[1]
+        if val:
+            set_cli_db(val)
+            return True
+    return False
 
 
 def describe_db(path: Path | None = None) -> str:

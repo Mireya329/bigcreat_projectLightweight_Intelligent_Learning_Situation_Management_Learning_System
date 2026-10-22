@@ -24,7 +24,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from db import get_conn, DB_PATH          # noqa: E402
+import db as _dbconf                                     # noqa: E402
+_dbconf.apply_cli_db()      # 让 --db 生效；不调这句会静默写到默认正式库
+from db import get_conn, resolve_db_path                   # noqa: E402
+DB_PATH = _dbconf.resolve_db_path()   # apply 之后再取，才是命令行给的那个          # noqa: E402
 
 FIVE_SUBJECTS = [
     ("POSTGRAD_MATH", "考研数学"),
