@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>项目进度看板 · 二号视角 · 2026-10-22</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#ffffff; --line:#e3e6ea; --text:#1f2328;
+    --muted:#6b7280; --ok:#16a34a; --okbg:#e8f6ed;
+    --part:#b45309; --partbg:#fdf3dc;
+    --wait:#2563eb; --waitbg:#e5eefc;
+    --block:#dc2626; --blockbg:#fdeaea;
+    --no:#6b7280; --nobg:#eef0f2;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; padding:28px 22px 48px; background:var(--bg); color:var(--text);
+    font-family:"Microsoft YaHei","PingFang SC","Segoe UI",system-ui,sans-serif;
+    font-size:14px; line-height:1.55;
+  }
+  .wrap{max-width:1080px; margin:0 auto}
+  h1{font-size:22px; margin:0 0 4px}
+  .sub{color:var(--muted); font-size:13px; margin-bottom:20px}
+  .sub b{color:var(--text)}
+
+  .kpis{display:flex; gap:12px; flex-wrap:wrap; margin-bottom:18px}
+  .kpi{
+    flex:1 1 150px; background:var(--card); border:1px solid var(--line);
+    border-radius:10px; padding:12px 14px;
+  }
+  .kpi .n{font-size:24px; font-weight:700; line-height:1.15}
+  .kpi .t{color:var(--muted); font-size:12px; margin-top:2px}
+  .kpi.green .n{color:var(--ok)} .kpi.amber .n{color:var(--part)}
+  .kpi.blue .n{color:var(--wait)} .kpi.red .n{color:var(--block)}
+
+  .legend{display:flex; gap:16px; flex-wrap:wrap; margin:0 0 18px; font-size:12.5px; color:var(--muted)}
+  .dot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; vertical-align:middle}
+
+  section{
+    background:var(--card); border:1px solid var(--line);
+    border-radius:10px; padding:16px 18px 18px; margin-bottom:16px;
+  }
+  h2{font-size:15px; margin:0 0 12px; display:flex; align-items:center; gap:8px}
+  h2 .tag{font-size:12px; font-weight:400; color:var(--muted)}
+
+  table{width:100%; border-collapse:collapse; font-size:13px}
+  th,td{border-bottom:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top}
+  th{background:#fafbfc; color:var(--muted); font-weight:600; font-size:12.5px; white-space:nowrap}
+  tbody tr:last-child td{border-bottom:none}
+  td.st{white-space:nowrap}
+  .pill{
+    display:inline-block; padding:1px 9px; border-radius:20px;
+    font-size:12px; font-weight:600;
+  }
+  .p-ok{background:var(--okbg); color:var(--ok)}
+  .p-part{background:var(--partbg); color:var(--part)}
+  .p-wait{background:var(--waitbg); color:var(--wait)}
+  .p-block{background:var(--blockbg); color:var(--block)}
+  .p-no{background:var(--nobg); color:var(--no)}
+
+  .who{font-weight:600; white-space:nowrap}
+  .note{color:var(--muted); font-size:12px}
+  footer{color:var(--muted); font-size:12px; margin-top:22px; line-height:1.7}
+  @media print{ body{background:#fff; padding:0} section{break-inside:avoid} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>项目进度看板 · 二号视角</h1>
+  <div class="sub">整理人 <b>Mireya（2 号）</b>　更新时间 <b>2026-10-22 21:10</b>　数据来源：当晚逐条实测，非回忆</div>
+
+  <div class="kpis">
+    <div class="kpi green"><div class="n">11</div><div class="t">已完成模块</div></div>
+    <div class="kpi amber"><div class="n">5</div><div class="t">做了但有缺口</div></div>
+    <div class="kpi blue"><div class="n">6</div><div class="t">等别人（阻塞中）</div></div>
+    <div class="kpi red"><div class="n">3</div><div class="t">待队长拍板 + 难点</div></div>
+    <div class="kpi"><div class="n">23 / 18</div><div class="t">路由 / 数据库表</div></div>
+  </div>
+
+  <div class="legend">
+    <span><i class="dot" style="background:var(--ok)"></i>完成</span>
+    <span><i class="dot" style="background:var(--part)"></i>部分完成 / 有缺口</span>
+    <span><i class="dot" style="background:var(--wait)"></i>等别人</span>
+    <span><i class="dot" style="background:var(--block)"></i>难点 / 阻塞</span>
+    <span><i class="dot" style="background:var(--no)"></i>明确不做</span>
+  </div>
+
+  <section>
+    <h2>一、已完成 <span class="tag">11 项，全部有实测证据</span></h2>
+    <table>
+      <thead><tr><th style="width:22%">模块</th><th style="width:16%">状态</th><th style="width:36%">做到哪一步</th><th>证据</th></tr></thead>
+      <tbody>
+        <tr><td>AI 协议接入</td><td class="st"><span class="pill p-ok">完成</span></td><td>v2 → v2.1 → v2.2 三轮全部接入</td><td class="note">ee43642 / 5186500 / 417a8db</td></tr>
+        <tr><td>计划参数校验</td><td class="st"><span class="pill p-ok">完成</span></td><td>两个入口统一到网关口径</td><td class="note">5d3aca6，37 项校验通过</td></tr>
+        <tr><td>后端接口</td><td class="st"><span class="pill p-ok">完成</span></td><td>23 个路由：错题闭环 8 个、题库 4 个、复习/单词/卡片</td><td class="note">api.py 实测</td></tr>
+        <tr><td>数据库</td><td class="st"><span class="pill p-ok">完成</span></td><td>18 张业务表，integrity ok、外键无异常</td><td class="note">含当晚补建的归档表</td></tr>
+        <tr><td>题库结构</td><td class="st"><span class="pill p-ok">完成</span></td><td>v2 表 30 列 + 迁移保护（单一配置、备份、冲突表）</td><td class="note">e07acb9</td></tr>
+        <tr><td>导入脚本</td><td class="st"><span class="pill p-ok">完成</span></td><td>PDF 自动切题 + 四号 CSV 两条路，增量/幂等/预演/报告</td><td class="note">两个脚本</td></tr>
+        <tr><td>小批量试导</td><td class="st"><span class="pill p-ok">完成</span></td><td>266 题入库（测试库），重复导入新增 0 / 更新 266</td><td class="note">9 份 PDF → 7 套卷</td></tr>
+        <tr><td>队长五项欠账</td><td class="st"><span class="pill p-ok">完成</span></td><td>占位符描述、CASE 文案、部署说明、id15 登记、三号字段</td><td class="note">3cc7738</td></tr>
+        <tr><td>两个真 bug</td><td class="st"><span class="pill p-ok">完成</span></td><td>正式库补建归档表；迁移脚本 --db 不再静默打正式库</td><td class="note">7 个脚本已接 apply_cli_db</td></tr>
+        <tr><td>回归测试</td><td class="st"><span class="pill p-ok">完成</span></td><td>协议测试全过、受控链路 37 项 0 失败</td><td class="note">整理当晚重跑</td></tr>
+        <tr><td>交付文档</td><td class="st"><span class="pill p-ok">完成</span></td><td>15 份 Word + 错误日志 45 条 + CSV 样例模板</td><td class="note">docs/待发送</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>二、做了但有缺口 <span class="tag">结构好了，缺数据或半成品</span></h2>
+    <table>
+      <thead><tr><th style="width:22%">模块</th><th style="width:16%">状态</th><th style="width:36%">现在什么样</th><th>缺什么</th></tr></thead>
+      <tbody>
+        <tr><td>题库数据</td><td class="st"><span class="pill p-part">有缺口</span></td><td>结构就绪，但正式库 question_bank 仍 0 行</td><td>四号首批 ≥10 条人工核对数据</td></tr>
+        <tr><td>前端闭环</td><td class="st"><span class="pill p-part">有缺口</span></td><td>接口全部实现，三号报的 404 是代码旧</td><td>三号 pull 到最新 commit 后重验</td></tr>
+        <tr><td>音频 / 图片</td><td class="st"><span class="pill p-part">有缺口</span></td><td>题里存了引用路径</td><td>静态服务没做，前端现在播不了</td></tr>
+        <tr><td>作答记录</td><td class="st"><span class="pill p-part">有缺口</span></td><td>有无状态判分接口（不写库）</td><td>持久化没做，等三号定提交形态</td></tr>
+        <tr><td>模型内容质量</td><td class="st"><span class="pill p-part">未验收</span></td><td>协议层通过，id15 已登记不可用于评测</td><td>需要真实新样本做质量验收</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>三、等别人（阻塞中） <span class="tag">我推不动，只能催</span></h2>
+    <table>
+      <thead><tr><th style="width:12%">等谁</th><th style="width:14%">状态</th><th style="width:40%">等什么</th><th>卡住了什么</th></tr></thead>
+      <tbody>
+        <tr><td class="who">三号</td><td class="st"><span class="pill p-wait">等待</span></td><td>拉最新代码重跑闭环三接口，回传失败清单</td><td>前端闭环无法验收</td></tr>
+        <tr><td class="who">三号</td><td class="st"><span class="pill p-wait">等待</span></td><td>确认前端作答的提交形态</td><td>作答记录持久化不敢先定表</td></tr>
+        <tr><td class="who">四号</td><td class="st"><span class="pill p-wait">等待</span></td><td>首批 ≥10 条人工核对题（五类各 ≥2 条）</td><td>正式库题库开不了张</td></tr>
+        <tr><td class="who">四号</td><td class="st"><span class="pill p-wait">等待</span></td><td>id15 原图或替代样本</td><td>AI 解题质量评测无法开展</td></tr>
+        <tr><td class="who">四号</td><td class="st"><span class="pill p-wait">等待</span></td><td>扫描件比例复核、第 3 套答案口径、词库范围</td><td>决定要不要上 OCR 流水线</td></tr>
+        <tr><td class="who">队长</td><td class="st"><span class="pill p-wait">等待</span></td><td>题库 status 命名口径（pending_review 撞名）</td><td>改名不敢擅自下手，题库 0 行改起来很便宜</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>四、难点 <span class="tag">决定全库能不能落地的关键路径</span></h2>
+    <table>
+      <thead><tr><th style="width:22%">难点</th><th style="width:14%">状态</th><th>具体情况</th></tr></thead>
+      <tbody>
+        <tr><td>扫描件比例高</td><td class="st"><span class="pill p-block">阻塞</span></td><td>样本 18 份 PDF 中 <b>10 份无文字层</b>（含全部 9 份解析），答案和解析提不出来；外推到全库 554 文件，大部分卷要过 OCR</td></tr>
+        <tr><td>OCR 流水线没通</td><td class="st"><span class="pill p-block">阻塞</span></td><td>目前没有一条跑通的 OCR → 答案 → 入库链路</td></tr>
+        <tr><td>切题规则脆弱</td><td class="st"><span class="pill p-part">有风险</span></td><td>靠"有字页占比≥0.8"和噪声词表；政治真题曾被误判成文字版切出假题；section 字段当前全空</td></tr>
+        <tr><td>模型侧老问题</td><td class="st"><span class="pill p-part">有风险</span></td><td>code=2 语义分裂、占位符会被 7B 照抄、<b>换网关包必须重启后端</b>（占位符有缓存）</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>五、明确不做 <span class="tag">规则约定或队长指示</span></h2>
+    <table>
+      <thead><tr><th style="width:26%">事项</th><th style="width:14%">状态</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>主观题自动判分</td><td class="st"><span class="pill p-no">不做</span></td><td>填空/简答/翻译/写作/计算一律返回 correct=null + needs_manual=true</td></tr>
+        <tr><td>择校功能</td><td class="st"><span class="pill p-no">暂缓</span></td><td>队长说先留接口；院校表清单已写好但没发四号</td></tr>
+        <tr><td>ai_interface 自测入口</td><td class="st"><span class="pill p-no">遗留</span></td><td>v1 遗留代码，跑起来就崩（改动前同样崩），一直没修</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    一句话：<b>协议的活已经干完，五项欠账当晚清完，卡点全在别人身上。</b>正式库 question_bank 仍 0 行，等四号数据。<br>
+    核实方式见《项目进度总结_20261022》第七节（附命令）；详细证据见《回复队长_第六轮反馈》与 docs/第二阶段错误日志.md 第 45 条。
+  </footer>
+
+</div>
+</body>
+</html>
